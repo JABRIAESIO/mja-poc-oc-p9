@@ -1,9 +1,23 @@
-import numpy as np
-import time
+import os
+import json
+import requests
+import tempfile
 import tensorflow as tf
-from PIL import Image
-import matplotlib.pyplot as plt
-from models.model_loader import preprocess_image_for_convnext
+from tensorflow.keras.models import load_model
+import tensorflow.keras.backend as K
+
+# Configuration pour permettre la désérialisation des couches Lambda
+tf.keras.config.enable_unsafe_deserialization()
+
+# URL du modèle sur Hugging Face
+HF_MODEL_URL = "https://huggingface.co/mourad42008/convnext-tiny-flipkart-classification/resolve/main/model_final.keras"
+
+# Suppression de cette ligne qui provoque l'importation circulaire :
+# from models.model_loader import preprocess_image_for_convnext
+
+# Paramètres de configuration
+DEFAULT_TIMEOUT = 300  # 5 minutes
+BLOCK_SIZE = 1024 * 1024  # 1 MB
 
 def resize_and_pad_image(image, target_size=(224, 224)):
     """
