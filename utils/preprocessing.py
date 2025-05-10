@@ -216,3 +216,37 @@ def process_prediction(predictions, categories_dict):
     probability = float(predictions[predicted_class])
     
     return predicted_class, class_name, probability
+
+# Action spécifique au model convnexttiny 
+# Objectif ! renforcer la solidité de l'API contre les importation circulaires
+
+def preprocess_image_for_convnext(image, target_size=(224, 224)):
+    """
+    Prétraite une image pour l'inférence avec le modèle ConvNeXtTiny.
+
+    Args:
+        image: Image PIL
+        target_size: Taille cible (défaut: 224x224)
+
+    Returns:
+        Tableau numpy normalisé prêt pour l'inférence
+    """
+    # Si l'image est déjà un tableau numpy, la convertir en image PIL
+    if isinstance(image, np.ndarray):
+        # Convertir le tableau en image PIL
+        image = Image.fromarray((image * 255).astype(np.uint8))
+
+    # Redimensionner l'image si nécessaire
+    if image.size != target_size:
+        image = image.resize(target_size, Image.LANCZOS)
+
+    # Convertir en tableau numpy
+    img_array = np.array(image).astype(np.float32)
+
+    # Normalisation pour ConvNeXtTiny (de -1 à 1)
+    img_array = img_array / 127.5 - 1.0
+
+    # Ajouter la dimension du batch
+    img_array = np.expand_dims(img_array, axis=0)
+
+    return img_array

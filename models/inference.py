@@ -3,68 +3,10 @@ import time
 import tensorflow as tf
 from PIL import Image
 import matplotlib.pyplot as plt
-from models.model_loader import preprocess_image_for_convnext
+import traceback
 
-def resize_and_pad_image(image, target_size=(224, 224)):
-    """
-    Redimensionne et ajoute du padding à une image pour atteindre la taille cible.
-
-    Args:
-        image: Image PIL
-        target_size: Tuple de (largeur, hauteur) cible
-
-    Returns:
-        Image PIL redimensionnée et paddée
-    """
-    # Obtenir les dimensions de l'image originale
-    width, height = image.size
-
-    # Calculer le ratio cible
-    target_ratio = target_size[0] / target_size[1]
-
-    # Calculer le ratio de l'image originale
-    ratio = width / height
-
-    # Redimensionner l'image en conservant le ratio d'aspect
-    if ratio > target_ratio:
-        # Image plus large que la cible
-        new_width = target_size[0]
-        new_height = int(new_width / ratio)
-    else:
-        # Image plus haute que la cible
-        new_height = target_size[1]
-        new_width = int(new_height * ratio)
-
-    # Redimensionner l'image
-    resized_image = image.resize((new_width, new_height), Image.LANCZOS)
-
-    # Créer une nouvelle image avec les dimensions cibles (fond noir)
-    padded_image = Image.new("RGB", target_size, (0, 0, 0))
-
-    # Calculer la position pour placer l'image redimensionnée au centre
-    left = (target_size[0] - new_width) // 2
-    top = (target_size[1] - new_height) // 2
-
-    # Coller l'image redimensionnée sur le fond
-    padded_image.paste(resized_image, (left, top))
-
-    return padded_image
-
-def preprocess_image(image, target_size=(224, 224)):
-    """
-    Prétraite une image pour l'inférence avec le modèle ConvNeXtTiny.
-    Cette fonction est maintenue pour compatibilité, mais utilise maintenant 
-    preprocess_image_for_convnext en interne.
-
-    Args:
-        image: Image PIL
-        target_size: Taille cible (défaut: 224x224)
-
-    Returns:
-        Tableau numpy normalisé prêt pour l'inférence
-    """
-    print("ATTENTION: preprocess_image est obsolète, utilisez preprocess_image_for_convnext à la place")
-    return preprocess_image_for_convnext(image, target_size)
+# Importer depuis utils.preprocessing au lieu d'importer de model_loader
+from utils.preprocessing import preprocess_image_for_convnext, resize_and_pad_image, apply_data_augmentation
 
 def predict_image(model, image, categories, verbose=True):
     """
@@ -82,7 +24,7 @@ def predict_image(model, image, categories, verbose=True):
     try:
         start_time = time.time()
 
-        # Prétraitement de l'image - utilisons directement preprocess_image_for_convnext
+        # Prétraitement de l'image
         preprocessed_image = preprocess_image_for_convnext(image)
 
         # Vérifier la forme de l'image prétraitée
@@ -149,7 +91,6 @@ def predict_image(model, image, categories, verbose=True):
 
     except Exception as e:
         # En cas d'erreur, retourner un dictionnaire d'erreur
-        import traceback
         error_trace = traceback.format_exc()
 
         if verbose:
@@ -211,57 +152,6 @@ def plot_prediction_bars(predictions, title="Probabilités par classe", figsize=
     plt.tight_layout()
 
     return fig
-
-def apply_data_augmentation(image, aug_type="rotation"):
-    """
-    Applique une augmentation de données à l'image.
-    Utile pour tester la robustesse du modèle.
-
-    Args:
-        image: Image PIL
-        aug_type: Type d'augmentation (rotation, flip, brightness, contrast, color)
-
-    Returns:
-        Image PIL augmentée
-    """
-    import random
-    from PIL import ImageEnhance
-
-    # Convertir en image PIL si nécessaire
-    if not isinstance(image, Image.Image):
-        image = Image.fromarray(np.uint8(image * 255))
-
-    # Appliquer l'augmentation spécifiée
-    if aug_type == "rotation":
-        # Rotation aléatoire entre -30 et 30 degrés
-        angle = random.uniform(-30, 30)
-        return image.rotate(angle, resample=Image.BILINEAR, expand=False)
-
-    elif aug_type == "flip":
-        # Flip horizontal
-        return image.transpose(Image.FLIP_LEFT_RIGHT)
-
-    elif aug_type == "brightness":
-        # Ajustement de la luminosité
-        factor = random.uniform(0.7, 1.3)
-        enhancer = ImageEnhance.Brightness(image)
-        return enhancer.enhance(factor)
-
-    elif aug_type == "contrast":
-        # Ajustement du contraste
-        factor = random.uniform(0.7, 1.3)
-        enhancer = ImageEnhance.Contrast(image)
-        return enhancer.enhance(factor)
-
-    elif aug_type == "color":
-        # Ajustement de la saturation
-        factor = random.uniform(0.7, 1.3)
-        enhancer = ImageEnhance.Color(image)
-        return enhancer.enhance(factor)
-
-    else:
-        # Type inconnu, retourner l'image originale
-        return image
 
 def get_top_n_predictions(predictions, n=3):
     """
@@ -358,35 +248,28 @@ def get_model_summary_dict(model):
     except Exception as e:
         return {"error": f"Erreur lors de la génération du résumé: {str(e)}"}
 
-# Fonction pour tester le script
-def test_inference_script():
-    """
-    Fonction de test pour vérifier le bon fonctionnement du script d'inférence.
-    """
+# Si exécuté directement, tester les fonctions
+if __name__ == "__main__":
     from tensorflow.keras.applications import EfficientNetB0
-
+    
     print("Test du script d'inférence...")
-
-    # Créer un modèle de test (EfficientNetB0 standard)
+    
+    # Créer un modèle de test
     test_model = EfficientNetB0(weights='imagenet', include_top=True)
-
-    # Créer une image de test (toute noire)
+    
+    # Créer une image de test
     test_image = Image.new('RGB', (300, 200), color='black')
-
+    
     # Dictionnaire de catégories pour le test
     test_categories = {i: f"Test Cat {i}" for i in range(1000)}
-
+    
     # Tester la prédiction
     result = predict_image(test_model, test_image, test_categories, verbose=True)
-
+    
     if "error" in result:
         print(f"Erreur lors du test: {result['error']}")
     else:
         print(f"Test réussi! Classe prédite: {result['predicted_class']}")
         print(f"Temps d'inférence: {result['inference_time']*1000:.2f} ms")
-
+    
     print("Test terminé.")
-
-# Si exécuté directement, lancer le test
-if __name__ == "__main__":
-    test_inference_script()
