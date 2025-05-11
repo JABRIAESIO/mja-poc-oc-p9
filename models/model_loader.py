@@ -63,9 +63,45 @@ def get_model_paths():
         "category_mapping": category_mapping
     }
 
+# Variable globale pour stocker le placeholder de chargement
+loading_placeholder = None
+
+def set_loading_placeholder(placeholder):
+    """
+    Définit le placeholder pour afficher les messages de progression
+    
+    Args:
+        placeholder: Élément Streamlit pour afficher les messages de progression
+    """
+    global loading_placeholder
+    loading_placeholder = placeholder
+
+def update_loading_status(message, status="info"):
+    """
+    Met à jour le statut de chargement dans l'interface Streamlit
+    
+    Args:
+        message: Message à afficher
+        status: Type de message ('info', 'success', 'error', 'warning')
+    """
+    global loading_placeholder
+    if loading_placeholder is not None:
+        if status == "info":
+            loading_placeholder.info(message)
+        elif status == "success":
+            loading_placeholder.success(message)
+        elif status == "error":
+            loading_placeholder.error(message)
+        elif status == "warning":
+            loading_placeholder.warning(message)
+    else:
+        print(message)  # Fallback à un print normal si placeholder non défini
+
+@st.cache_resource(show_spinner=False)
 def load_model_from_huggingface():
     """
-    Charge le modèle depuis Hugging Face.
+    Charge le modèle depuis Hugging Face avec affichage de l'état de progression
+    dans l'interface Streamlit.
 
     Returns:
         Modèle Keras chargé
@@ -77,13 +113,15 @@ def load_model_from_huggingface():
 
         # Si le modèle existe déjà localement, le charger
         if os.path.exists(model_path):
-            print(f"Chargement du modèle local depuis {model_path}")
+            update_loading_status(f"Chargement du modèle local depuis {model_path}...")
             try:
                 # Essayer d'abord avec la méthode standard
-                return load_model(model_path)
+                model = load_model(model_path)
+                update_loading_status("Modèle local chargé avec succès!", "success")
+                return model
             except ValueError as e:
-                print(f"Erreur standard de chargement: {e}")
-                print("Tentative de chargement avec TFSMLayer...")
+                update_loading_status(f"Erreur standard de chargement: {e}", "warning")
+                update_loading_status("Tentative de chargement avec TFSMLayer...")
                 try:
                     # Utiliser TFSMLayer comme suggéré dans l'erreur
                     from keras.layers import TFSMLayer
@@ -92,14 +130,14 @@ def load_model_from_huggingface():
                     model = Sequential([
                         TFSMLayer(model_path, call_endpoint='serving_default')
                     ])
-                    print("Modèle chargé avec TFSMLayer")
+                    update_loading_status("Modèle chargé avec TFSMLayer!", "success")
                     return model
                 except Exception as inner_e:
-                    print(f"Erreur avec TFSMLayer: {inner_e}")
+                    update_loading_status(f"Erreur avec TFSMLayer: {inner_e}", "error")
                     return None
 
         # Sinon, télécharger le modèle depuis Hugging Face
-        print(f"Téléchargement du modèle depuis Hugging Face: {HF_MODEL_URL}")
+        update_loading_status(f"Téléchargement du modèle depuis Hugging Face...", "info")
 
         # Créer un fichier temporaire pour le téléchargement
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
@@ -112,9 +150,9 @@ def load_model_from_huggingface():
         headers = {}
         if hf_token:
             headers["Authorization"] = f"Bearer {hf_token}"
-            print("Token d'authentification Hugging Face trouvé et utilisé")
+            update_loading_status("Token d'authentification Hugging Face trouvé et utilisé", "info")
         else:
-            print("Aucun token d'authentification Hugging Face trouvé")
+            update_loading_status("Aucun token d'authentification Hugging Face trouvé", "warning")
 
         # Télécharger le modèle avec authentification si nécessaire
         response = requests.get(
@@ -126,25 +164,37 @@ def load_model_from_huggingface():
         )
 
         # Afficher des informations de débogage
-        print(f"Code HTTP: {response.status_code}")
-        print(f"URL finale après redirection: {response.url}")
+        update_loading_status(f"Code HTTP: {response.status_code}", "info")
+        update_loading_status(f"URL finale après redirection: {response.url}", "info")
 
         response.raise_for_status()  # Lève une exception en cas d'erreur HTTP
 
-        # Enregistrer le modèle dans le fichier temporaire
+        # Enregistrer le modèle dans le fichier temporaire avec indication de progression
+        update_loading_status("Téléchargement du fichier modèle (114 MB)...", "info")
+        content_length = int(response.headers.get('Content-Length', 0)) or None
+        if content_length:
+            update_loading_status(f"Taille totale: {content_length/1024/1024:.1f} MB", "info")
+        
+        downloaded = 0
         with open(temp_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
+                downloaded += len(chunk)
+                if content_length and downloaded % (5*1024*1024) == 0:  # Mise à jour tous les 5 MB
+                    update_loading_status(f"Téléchargement en cours... {downloaded/1024/1024:.1f} MB / {content_length/1024/1024:.1f} MB", "info")
+
+        update_loading_status("Téléchargement terminé. Chargement du modèle...", "info")
 
         # Charger le modèle
-        print(f"Chargement du modèle depuis le fichier temporaire: {temp_path}")
+        update_loading_status(f"Chargement du modèle depuis le fichier temporaire...", "info")
         try:
             # Essayer d'abord avec la méthode standard
+            update_loading_status("Tentative avec load_model standard...", "info")
             model = load_model(temp_path)
-            print("Modèle chargé avec load_model standard")
+            update_loading_status("Modèle chargé avec load_model standard!", "success")
         except ValueError as e:
-            print(f"Erreur standard de chargement: {e}")
-            print("Tentative de chargement avec TFSMLayer...")
+            update_loading_status(f"Erreur standard de chargement: {e}", "warning")
+            update_loading_status("Tentative de chargement avec TFSMLayer...", "info")
             try:
                 # Utiliser TFSMLayer comme suggéré dans l'erreur
                 from keras.layers import TFSMLayer
@@ -153,31 +203,34 @@ def load_model_from_huggingface():
                 model = Sequential([
                     TFSMLayer(temp_path, call_endpoint='serving_default')
                 ])
-                print("Modèle chargé avec TFSMLayer")
+                update_loading_status("Modèle chargé avec TFSMLayer!", "success")
             except Exception as inner_e:
-                print(f"Erreur avec TFSMLayer: {inner_e}")
+                update_loading_status(f"Erreur avec TFSMLayer: {inner_e}", "error")
                 # Dernière tentative avec tf.keras
+                update_loading_status("Tentative avec tf.keras.models.load_model...", "info")
                 try:
                     import tensorflow as tf
                     model = tf.keras.models.load_model(temp_path)
-                    print("Modèle chargé avec tf.keras.models.load_model")
+                    update_loading_status("Modèle chargé avec tf.keras.models.load_model!", "success")
                 except Exception as tf_e:
-                    print(f"Erreur avec tf.keras.models.load_model: {tf_e}")
+                    update_loading_status(f"Erreur avec tf.keras.models.load_model: {tf_e}", "error")
                     return None
 
         # Sauvegarder le modèle localement pour une utilisation future
         try:
-            print(f"Sauvegarde du modèle vers: {model_path}")
+            update_loading_status(f"Sauvegarde du modèle vers {model_path}...", "info")
             model.save(model_path)
+            update_loading_status("Modèle sauvegardé localement avec succès!", "success")
         except Exception as save_e:
-            print(f"Erreur lors de la sauvegarde du modèle: {save_e}")
+            update_loading_status(f"Erreur lors de la sauvegarde du modèle: {save_e}", "warning")
             # Copier le fichier temporaire comme alternative
             import shutil
             try:
+                update_loading_status("Tentative de copie du fichier temporaire...", "info")
                 shutil.copy2(temp_path, model_path)
-                print(f"Fichier temporaire copié à la place")
+                update_loading_status("Fichier temporaire copié avec succès!", "success")
             except Exception as copy_e:
-                print(f"Erreur lors de la copie du fichier: {copy_e}")
+                update_loading_status(f"Erreur lors de la copie du fichier: {copy_e}", "error")
 
         # Supprimer le fichier temporaire
         try:
@@ -189,35 +242,41 @@ def load_model_from_huggingface():
 
     except Exception as e:
         import traceback
-        print(f"Erreur lors du chargement du modèle: {e}")
-        print(traceback.format_exc())
+        update_loading_status(f"Erreur lors du chargement du modèle: {e}", "error")
+        update_loading_status(traceback.format_exc(), "error")
 
         # Ajouter plus de détails sur l'erreur
         try:
             if 'response' in locals() and response is not None:
-                print(f"Code d'état HTTP: {response.status_code}")
-                print(f"URL finale: {response.url}")
-                print(f"En-têtes de réponse: {dict(response.headers)}")
+                update_loading_status(f"Code d'état HTTP: {response.status_code}", "error")
+                update_loading_status(f"URL finale: {response.url}", "error")
         except:
             pass
 
         return None
 
-def load_efficientnet_transformer_model():
+def load_efficientnet_transformer_model(progress_placeholder=None):
     """
     Charge le modèle EfficientNet-Transformer (maintenu pour compatibilité,
     mais charge réellement ConvNeXtTiny).
 
+    Args:
+        progress_placeholder: Un placeholder Streamlit pour afficher la progression
+
     Returns:
         Modèle Keras chargé
     """
-    print("Chargement du modèle ConvNeXtTiny...")
+    # Définir le placeholder de chargement si fourni
+    if progress_placeholder is not None:
+        set_loading_placeholder(progress_placeholder)
+    
+    update_loading_status("Chargement du modèle ConvNeXtTiny...", "info")
     model = load_model_from_huggingface()
 
     if model is None:
-        print("Impossible de charger le modèle. Vérifiez la connexion et les chemins.")
+        update_loading_status("Impossible de charger le modèle. Vérifiez la connexion et les chemins.", "error")
     else:
-        print("Modèle chargé avec succès!")
+        update_loading_status("Modèle chargé avec succès!", "success")
 
     return model
 
@@ -282,7 +341,12 @@ def preprocess_image(image, target_size=(224, 224)):
 
 # Si exécuté directement, tester le chargement du modèle
 if __name__ == "__main__":
-    model = load_efficientnet_transformer_model()
+    # Création d'un placeholder pour les tests
+    test_placeholder = None
+    if 'st' in globals():
+        test_placeholder = st.empty()
+    
+    model = load_efficientnet_transformer_model(test_placeholder)
     categories = load_categories()
     print(f"Catégories: {categories}")
 
