@@ -5,6 +5,11 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import traceback
 
+# Force l'utilisation de tf.keras au lieu de keras standalone
+import os
+os.environ['TF_USE_LEGACY_KERAS'] = '1'  # Désactive Keras 3
+os.environ['KERAS_BACKEND'] = 'tensorflow'  # Force le backend TF
+
 # Importer depuis utils.preprocessing au lieu d'importer de model_loader
 from utils.preprocessing import preprocess_image_for_convnext, resize_and_pad_image, apply_data_augmentation
 
@@ -36,9 +41,48 @@ def predict_image(model, image, categories, verbose=True):
         # Mesurer le temps de prétraitement
         preprocess_time = time.time() - start_time
 
-        # Inférence
+        # Inférence - gérer différents types de modèles (keras standard ou savedmodel)
         inference_start = time.time()
-        predictions = model.predict(preprocessed_image, verbose=0)
+        try:
+            # Pour un modèle keras standard
+            if hasattr(model, 'predict'):
+                predictions = model.predict(preprocessed_image, verbose=0)
+            # Pour un SavedModel
+            elif hasattr(model, 'signatures'):
+                # Obtenir la signature par défaut
+                infer = model.signatures['serving_default']
+                # Trouver le nom de l'entrée
+                input_name = list(infer.structured_input_signature[1].keys())[0]
+                # Convertir en tensor
+                tensor_input = tf.convert_to_tensor(preprocessed_image)
+                # Faire la prédiction
+                result = infer(**{input_name: tensor_input})
+                # Obtenir la sortie
+                output_name = list(result.keys())[0]
+                predictions = result[output_name].numpy()
+            else:
+                # Tenter une approche générique pour les modèles non standard
+                if hasattr(model, '__call__'):
+                    predictions = model(preprocessed_image).numpy()
+                else:
+                    raise ValueError("Format de modèle non reconnu")
+        except Exception as e:
+            if verbose:
+                print(f"Erreur lors de la prédiction standard: {e}")
+            
+            # Tentative de dernier recours avec un modèle SavedModel
+            try:
+                if hasattr(model, 'signatures'):
+                    infer = model.signatures['serving_default']
+                    input_name = list(infer.structured_input_signature[1].keys())[0]
+                    result = infer(**{input_name: tf.convert_to_tensor(preprocessed_image)})
+                    output_name = list(result.keys())[0]
+                    predictions = result[output_name].numpy()
+                else:
+                    raise ValueError("Modèle incompatible")
+            except Exception as inner_e:
+                raise ValueError(f"Échec de toutes les méthodes de prédiction: {str(e)} puis {str(inner_e)}")
+        
         inference_time = time.time() - inference_start
 
         # Temps total (prétraitement + inférence)
@@ -183,6 +227,11 @@ def extract_features(model, image, layer_name=None):
         Caractéristiques extraites
     """
     try:
+        # Gérer différents types de modèles
+        if not hasattr(model, 'layers'):
+            print("Extraction de caractéristiques non disponible pour les modèles SavedModel")
+            return None
+            
         # Si layer_name est None, trouver l'avant-dernière couche
         if layer_name is None:
             # Généralement l'avant-dernière couche pour la classification
@@ -221,28 +270,61 @@ def get_model_summary_dict(model):
         return {"error": "Modèle non disponible"}
 
     try:
-        # Extraire les informations de base
-        summary = {
-            "name": model.name,
-            "layers_count": len(model.layers),
-            "parameters_count": model.count_params(),
-            "input_shape": str(model.input_shape),
-            "output_shape": str(model.output_shape),
-            "layers": []
-        }
-
-        # Ajouter des informations sur chaque couche
-        for layer in model.layers:
-            layer_info = {
-                "name": layer.name,
-                "type": layer.__class__.__name__,
-                "trainable": layer.trainable,
-                "parameters": layer.count_params(),
-                "input_shape": str(layer.input_shape),
-                "output_shape": str(layer.output_shape)
+        # Gérer différents types de modèles
+        if hasattr(model, 'layers'):
+            # Pour un modèle Keras standard
+            summary = {
+                "name": model.name,
+                "layers_count": len(model.layers),
+                "parameters_count": model.count_params(),
+                "input_shape": str(model.input_shape),
+                "output_shape": str(model.output_shape),
+                "layers": []
             }
-            summary["layers"].append(layer_info)
 
+            # Ajouter des informations sur chaque couche
+            for layer in model.layers:
+                layer_info = {
+                    "name": layer.name,
+                    "type": layer.__class__.__name__,
+                    "trainable": layer.trainable,
+                    "parameters": layer.count_params(),
+                    "input_shape": str(layer.input_shape),
+                    "output_shape": str(layer.output_shape)
+                }
+                summary["layers"].append(layer_info)
+        else:
+            # Pour un SavedModel
+            if hasattr(model, 'signatures'):
+                signature_keys = list(model.signatures.keys()) if hasattr(model, 'signatures') else []
+                input_signature = model.signatures['serving_default'].structured_input_signature if 'serving_default' in signature_keys else None
+                
+                summary = {
+                    "name": "SavedModel",
+                    "type": "SavedModel",
+                    "signatures": signature_keys,
+                    "input_signature": str(input_signature),
+                    "layers": []
+                }
+                
+                # Ajouter des informations sur les signatures disponibles
+                if 'serving_default' in signature_keys:
+                    serving_signature = model.signatures['serving_default']
+                    input_specs = serving_signature.structured_input_signature
+                    output_specs = serving_signature.structured_outputs
+                    
+                    summary["serving_default"] = {
+                        "inputs": str(input_specs),
+                        "outputs": str(output_specs)
+                    }
+            else:
+                # Pour tout autre type de modèle
+                summary = {
+                    "name": "Unknown Model Type",
+                    "type": str(type(model)),
+                    "note": "Informations détaillées non disponibles pour ce type de modèle"
+                }
+                
         return summary
 
     except Exception as e:
@@ -251,25 +333,25 @@ def get_model_summary_dict(model):
 # Si exécuté directement, tester les fonctions
 if __name__ == "__main__":
     from tensorflow.keras.applications import EfficientNetB0
-    
+
     print("Test du script d'inférence...")
-    
+
     # Créer un modèle de test
     test_model = EfficientNetB0(weights='imagenet', include_top=True)
-    
+
     # Créer une image de test
     test_image = Image.new('RGB', (300, 200), color='black')
-    
+
     # Dictionnaire de catégories pour le test
     test_categories = {i: f"Test Cat {i}" for i in range(1000)}
-    
+
     # Tester la prédiction
     result = predict_image(test_model, test_image, test_categories, verbose=True)
-    
+
     if "error" in result:
         print(f"Erreur lors du test: {result['error']}")
     else:
         print(f"Test réussi! Classe prédite: {result['predicted_class']}")
         print(f"Temps d'inférence: {result['inference_time']*1000:.2f} ms")
-    
+
     print("Test terminé.")

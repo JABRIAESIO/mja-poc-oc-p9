@@ -10,6 +10,10 @@ import time
 from PIL import Image
 import streamlit as st  # Ajout de l'import streamlit
 
+# Force l'utilisation de tf.keras au lieu de keras standalone
+os.environ['TF_USE_LEGACY_KERAS'] = '1'  # Désactive Keras 3
+os.environ['KERAS_BACKEND'] = 'tensorflow'  # Force le backend TF
+
 # Importer depuis utils.preprocessing au lieu d'autres modules
 from utils.preprocessing import preprocess_image_for_convnext, resize_and_pad_image
 
@@ -19,7 +23,7 @@ tf.keras.config.enable_unsafe_deserialization()
 # URL du modèle sur Hugging Face
 HF_MODEL_URL = "https://huggingface.co/mourad42008/convnext-tiny-flipkart-classification/resolve/main/model_final.keras"
 # Nom du fichier pour la sauvegarde locale - CORRIGÉ pour correspondre au fichier sur HF
-MODEL_FILENAME = "model_final.keras"
+MODEL_FILENAME = "model_final.savedmodel"
 
 def get_hugging_face_token():
     """
@@ -50,7 +54,7 @@ def get_model_paths():
     models_dir = os.path.join(root_dir, "models", "saved")
     os.makedirs(models_dir, exist_ok=True)
 
-    # Fichier du modèle - CORRIGÉ pour utiliser le même nom que sur HF
+    # Fichier du modèle - CORRIGÉ pour utiliser le nouveau nom adapté au format SavedModel
     convnext_model_path = os.path.join(models_dir, MODEL_FILENAME)
 
     # Mapping des catégories
@@ -69,7 +73,7 @@ loading_placeholder = None
 def set_loading_placeholder(placeholder):
     """
     Définit le placeholder pour afficher les messages de progression
-    
+
     Args:
         placeholder: Élément Streamlit pour afficher les messages de progression
     """
@@ -79,7 +83,7 @@ def set_loading_placeholder(placeholder):
 def update_loading_status(message, status="info"):
     """
     Met à jour le statut de chargement dans l'interface Streamlit
-    
+
     Args:
         message: Message à afficher
         status: Type de message ('info', 'success', 'error', 'warning')
@@ -115,26 +119,37 @@ def load_model_from_huggingface():
         if os.path.exists(model_path):
             update_loading_status(f"Chargement du modèle local depuis {model_path}...")
             try:
-                # Essayer d'abord avec la méthode standard
-                model = load_model(model_path)
+                # Pour un SavedModel, utiliser tf.keras.models.load_model directement
+                model = tf.keras.models.load_model(model_path)
                 update_loading_status("Modèle local chargé avec succès!", "success")
                 return model
             except ValueError as e:
                 update_loading_status(f"Erreur standard de chargement: {e}", "warning")
                 update_loading_status("Tentative de chargement avec TFSMLayer...")
                 try:
-                    # Utiliser TFSMLayer comme suggéré dans l'erreur
-                    from keras.layers import TFSMLayer
-                    from keras.models import Sequential
+                    # Utiliser TFSMLayer pour charger un SavedModel format
+                    from tensorflow.keras.layers import Lambda
+                    from tensorflow.keras.models import Sequential
                     
+                    # Créer un modèle qui charge le SavedModel en tant que couche
                     model = Sequential([
-                        TFSMLayer(model_path, call_endpoint='serving_default')
+                        Lambda(lambda _: tf.saved_model.load(model_path), 
+                               input_shape=(None,))
                     ])
-                    update_loading_status("Modèle chargé avec TFSMLayer!", "success")
+                    update_loading_status("Modèle chargé avec Lambda layer!", "success")
                     return model
                 except Exception as inner_e:
-                    update_loading_status(f"Erreur avec TFSMLayer: {inner_e}", "error")
-                    return None
+                    update_loading_status(f"Erreur avec Lambda layer: {inner_e}", "error")
+                    
+                    # Dernière tentative avec un chargement différent
+                    try:
+                        update_loading_status("Tentative de chargement direct avec tf.saved_model.load...", "info")
+                        model = tf.saved_model.load(model_path)
+                        update_loading_status("Modèle chargé avec tf.saved_model.load!", "success")
+                        return model
+                    except Exception as sm_e:
+                        update_loading_status(f"Erreur avec tf.saved_model.load: {sm_e}", "error")
+                        return None
 
         # Sinon, télécharger le modèle depuis Hugging Face
         update_loading_status(f"Téléchargement du modèle depuis Hugging Face...", "info")
@@ -174,7 +189,7 @@ def load_model_from_huggingface():
         content_length = int(response.headers.get('Content-Length', 0)) or None
         if content_length:
             update_loading_status(f"Taille totale: {content_length/1024/1024:.1f} MB", "info")
-        
+
         downloaded = 0
         with open(temp_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
@@ -185,41 +200,52 @@ def load_model_from_huggingface():
 
         update_loading_status("Téléchargement terminé. Chargement du modèle...", "info")
 
-        # Charger le modèle
-        update_loading_status(f"Chargement du modèle depuis le fichier temporaire...", "info")
+        # Vérifier si le fichier téléchargé est un SavedModel ou autre format
         try:
-            # Essayer d'abord avec la méthode standard
-            update_loading_status("Tentative avec load_model standard...", "info")
-            model = load_model(temp_path)
-            update_loading_status("Modèle chargé avec load_model standard!", "success")
-        except ValueError as e:
-            update_loading_status(f"Erreur standard de chargement: {e}", "warning")
-            update_loading_status("Tentative de chargement avec TFSMLayer...", "info")
-            try:
-                # Utiliser TFSMLayer comme suggéré dans l'erreur
-                from keras.layers import TFSMLayer
-                from keras.models import Sequential
-                
-                model = Sequential([
-                    TFSMLayer(temp_path, call_endpoint='serving_default')
-                ])
-                update_loading_status("Modèle chargé avec TFSMLayer!", "success")
-            except Exception as inner_e:
-                update_loading_status(f"Erreur avec TFSMLayer: {inner_e}", "error")
-                # Dernière tentative avec tf.keras
-                update_loading_status("Tentative avec tf.keras.models.load_model...", "info")
+            # Essayer d'abord avec tf.saved_model.load pour détecter si c'est un SavedModel
+            update_loading_status("Vérification du format du modèle...", "info")
+            saved_model = tf.saved_model.contains_saved_model(temp_path)
+            if saved_model:
+                update_loading_status("Modèle détecté comme format SavedModel", "info")
                 try:
-                    import tensorflow as tf
+                    model = tf.saved_model.load(temp_path)
+                    update_loading_status("Modèle chargé avec tf.saved_model.load!", "success")
+                except Exception as sm_e:
+                    update_loading_status(f"Erreur avec tf.saved_model.load: {sm_e}", "error")
+                    # Essayer avec une approche plus standard pour les SavedModel
+                    try:
+                        model = tf.keras.models.load_model(temp_path)
+                        update_loading_status("Modèle chargé avec tf.keras.models.load_model!", "success")
+                    except Exception as keras_e:
+                        update_loading_status(f"Erreur avec tf.keras.models.load_model: {keras_e}", "error")
+                        return None
+            else:
+                # Si ce n'est pas un SavedModel, essayer avec les méthodes standard Keras
+                update_loading_status("Modèle n'est pas un SavedModel, tentative avec load_model standard...", "info")
+                try:
                     model = tf.keras.models.load_model(temp_path)
-                    update_loading_status("Modèle chargé avec tf.keras.models.load_model!", "success")
-                except Exception as tf_e:
-                    update_loading_status(f"Erreur avec tf.keras.models.load_model: {tf_e}", "error")
+                    update_loading_status("Modèle chargé avec tf.keras.models.load_model standard!", "success")
+                except Exception as keras_e:
+                    update_loading_status(f"Erreur avec load_model standard: {keras_e}", "error")
                     return None
+        except Exception as format_e:
+            update_loading_status(f"Erreur lors de la vérification du format: {format_e}", "error")
+            # Dernière tentative avec la méthode standard
+            try:
+                model = tf.keras.models.load_model(temp_path)
+                update_loading_status("Modèle chargé avec tf.keras.models.load_model (dernière tentative)!", "success")
+            except Exception as last_e:
+                update_loading_status(f"Échec de toutes les tentatives de chargement: {last_e}", "error")
+                return None
 
         # Sauvegarder le modèle localement pour une utilisation future
         try:
             update_loading_status(f"Sauvegarde du modèle vers {model_path}...", "info")
-            model.save(model_path)
+            # Utiliser tf.saved_model.save pour un format compatible
+            if hasattr(model, 'save'):
+                model.save(model_path)
+            else:
+                tf.saved_model.save(model, model_path)
             update_loading_status("Modèle sauvegardé localement avec succès!", "success")
         except Exception as save_e:
             update_loading_status(f"Erreur lors de la sauvegarde du modèle: {save_e}", "warning")
@@ -269,7 +295,7 @@ def load_efficientnet_transformer_model(progress_placeholder=None):
     # Définir le placeholder de chargement si fourni
     if progress_placeholder is not None:
         set_loading_placeholder(progress_placeholder)
-    
+
     update_loading_status("Chargement du modèle ConvNeXtTiny...", "info")
     model = load_model_from_huggingface()
 
@@ -345,10 +371,10 @@ if __name__ == "__main__":
     test_placeholder = None
     if 'st' in globals():
         test_placeholder = st.empty()
-    
+
     model = load_efficientnet_transformer_model(test_placeholder)
     categories = load_categories()
     print(f"Catégories: {categories}")
 
     if model:
-        print(f"Modèle chargé avec succès. Nombre de couches: {len(model.layers)}")
+        print(f"Modèle chargé avec succès. Nombre de couches: {len(model.layers) if hasattr(model, 'layers') else 'N/A (SavedModel format)'}")
