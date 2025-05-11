@@ -18,6 +18,8 @@ tf.keras.config.enable_unsafe_deserialization()
 
 # URL du modèle sur Hugging Face
 HF_MODEL_URL = "https://huggingface.co/mourad42008/convnext-tiny-flipkart-classification/resolve/main/model_final.keras"
+# Nom du fichier pour la sauvegarde locale - CORRIGÉ pour correspondre au fichier sur HF
+MODEL_FILENAME = "model_final.keras"
 
 def get_hugging_face_token():
     """
@@ -48,8 +50,8 @@ def get_model_paths():
     models_dir = os.path.join(root_dir, "models", "saved")
     os.makedirs(models_dir, exist_ok=True)
 
-    # Fichier du modèle ConvNeXt
-    convnext_model_path = os.path.join(models_dir, "model_convnext_tiny.keras")
+    # Fichier du modèle - CORRIGÉ pour utiliser le même nom que sur HF
+    convnext_model_path = os.path.join(models_dir, MODEL_FILENAME)
 
     # Mapping des catégories
     category_mapping = os.path.join(models_dir, "category_mapping.json")
@@ -60,7 +62,6 @@ def get_model_paths():
         "convnext_model": convnext_model_path,
         "category_mapping": category_mapping
     }
-
 
 def load_model_from_huggingface():
     """
@@ -77,9 +78,14 @@ def load_model_from_huggingface():
         # Si le modèle existe déjà localement, le charger
         if os.path.exists(model_path):
             print(f"Chargement du modèle local depuis {model_path}")
-            return load_model(model_path)
+            try:
+                return load_model(model_path)
+            except Exception as local_error:
+                print(f"Erreur lors du chargement du modèle local: {local_error}")
+                print("Tentative de téléchargement depuis Hugging Face...")
+                # Si le chargement local échoue, on continue pour télécharger
 
-        # Sinon, télécharger le modèle depuis Hugging Face
+        # Télécharger le modèle depuis Hugging Face
         print(f"Téléchargement du modèle depuis Hugging Face: {HF_MODEL_URL}")
 
         # Créer un fichier temporaire pour le téléchargement
@@ -98,7 +104,6 @@ def load_model_from_huggingface():
             print("Aucun token d'authentification Hugging Face trouvé")
 
         # Télécharger le modèle avec authentification si nécessaire
-        # Ajout de allow_redirects=True pour suivre les redirections
         response = requests.get(
             HF_MODEL_URL,
             headers=headers,
@@ -120,16 +125,48 @@ def load_model_from_huggingface():
 
         # Charger le modèle
         print(f"Chargement du modèle depuis le fichier temporaire: {temp_path}")
-        model = load_model(temp_path)
-
-        # Sauvegarder le modèle localement pour une utilisation future
-        print(f"Sauvegarde du modèle vers: {model_path}")
-        model.save(model_path)
-
-        # Supprimer le fichier temporaire
-        os.unlink(temp_path)
-
-        return model
+        try:
+            model = load_model(temp_path)
+            
+            # Sauvegarder le modèle localement pour une utilisation future
+            print(f"Sauvegarde du modèle vers: {model_path}")
+            model.save(model_path)
+            
+            # Supprimer le fichier temporaire
+            os.unlink(temp_path)
+            
+            return model
+        except Exception as e:
+            print(f"Erreur lors du chargement du modèle téléchargé: {e}")
+            
+            # Essayer une approche alternative avec TensorFlow directement
+            try:
+                print("Tentative de chargement avec tf.keras.models.load_model...")
+                model = tf.keras.models.load_model(temp_path)
+                
+                # Sauvegarder le modèle localement si réussi
+                print(f"Sauvegarde du modèle vers: {model_path}")
+                model.save(model_path)
+                
+                # Supprimer le fichier temporaire
+                os.unlink(temp_path)
+                
+                return model
+            except Exception as tf_error:
+                print(f"Erreur lors du chargement avec TensorFlow: {tf_error}")
+                
+                # En dernier recours, garder le fichier téléchargé
+                import shutil
+                print(f"Copie du fichier téléchargé vers: {model_path}")
+                shutil.copy2(temp_path, model_path)
+                os.unlink(temp_path)
+                
+                print("Tentative finale de chargement...")
+                try:
+                    return load_model(model_path)
+                except Exception as final_error:
+                    print(f"Échec de toutes les tentatives de chargement: {final_error}")
+                    return None
 
     except Exception as e:
         import traceback
