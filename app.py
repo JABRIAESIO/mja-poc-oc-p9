@@ -33,7 +33,7 @@ def test_hugging_face_connection():
     try:
         # Obtenir le token
         hf_token = get_hugging_face_token()
-        
+
         # Préparer les headers
         headers = {}
         if hf_token:
@@ -41,24 +41,46 @@ def test_hugging_face_connection():
             st.info("🔑 Token d'authentification trouvé")
         else:
             st.warning("⚠️ Aucun token d'authentification trouvé")
-        
-        # Faire la requête
-        with st.spinner("Test en cours..."):
-            response = requests.head(HF_MODEL_URL, headers=headers, timeout=10)
-            
+
+        # Tester d'abord whoami pour vérifier l'authentification
+        with st.spinner("Test d'authentification..."):
+            auth_url = "https://huggingface.co/api/whoami"
+            auth_response = requests.get(auth_url, headers=headers, timeout=10)
+
+            if auth_response.status_code == 200:
+                st.success("✅ Authentification réussie!")
+                user_data = auth_response.json()
+                st.write(f"Connecté en tant que: {user_data.get('name', 'Utilisateur inconnu')}")
+            else:
+                st.error(f"❌ Erreur d'authentification: {auth_response.status_code}")
+                with st.expander("Détails de l'erreur d'authentification"):
+                    st.write(auth_response.text)
+
+        # Faire la requête sur le modèle
+        with st.spinner("Test d'accès au modèle..."):
+            response = requests.head(
+                HF_MODEL_URL,
+                headers=headers,
+                timeout=10,
+                allow_redirects=True  # Suivre les redirections
+            )
+
+            st.write(f"URL finale après redirection: {response.url}")
+
             if response.status_code == 200:
                 size_mb = int(response.headers.get('content-length', 0)) / (1024 * 1024)
                 st.success(f"✅ Connexion réussie! \nTaille du modèle: {size_mb:.2f} MB")
                 return True
             else:
                 st.error(f"❌ Erreur HTTP {response.status_code}")
-                
+
                 # Afficher des informations de débogage
                 with st.expander("Détails de l'erreur"):
                     st.write({
                         "Status Code": response.status_code,
+                        "URL demandée": HF_MODEL_URL,
+                        "URL finale": response.url,
                         "Headers": dict(response.headers),
-                        "URL": HF_MODEL_URL,
                         "Token présent": bool(hf_token)
                     })
                 return False
@@ -111,13 +133,13 @@ def load_model():
 
             if model is None:
                 st.error("Le modèle n'a pas pu être chargé (retourné None)")
-                
+
                 # Vérifier si le token est présent
                 hf_token = get_hugging_face_token()
                 if not hf_token:
                     st.error("Aucun token Hugging Face trouvé. Veuillez l'ajouter dans les secrets Streamlit.")
                     st.info("Pour ajouter un token Hugging Face, allez dans les paramètres de votre application Streamlit Cloud, puis dans l'onglet 'Secrets' et ajoutez: HF_TOKEN = 'votre_token'")
-                
+
                 return None, None
 
             # Vérification du modèle chargé
@@ -144,16 +166,16 @@ def load_model():
             st.error(f"Erreur détaillée lors du chargement: {str(e)}")
             st.error("Traceback complet:")
             st.code(traceback.format_exc())
-            
+
             # Vérifier si le token est présent
             hf_token = get_hugging_face_token()
             if not hf_token:
                 st.error("Aucun token Hugging Face trouvé. Veuillez l'ajouter dans les secrets Streamlit.")
                 st.info("Pour ajouter un token Hugging Face, allez dans les paramètres de votre application Streamlit Cloud, puis dans l'onglet 'Secrets' et ajoutez: HF_TOKEN = 'votre_token'")
-            
+
             return None, None
 
-# Ajoutez ici le reste de votre application, y compris le chargement du modèle, 
+# Ajoutez ici le reste de votre application, y compris le chargement du modèle,
 # l'interface utilisateur pour télécharger les images, etc.
 # Par exemple:
 
@@ -168,12 +190,12 @@ if uploaded_file is not None:
     try:
         image = Image.open(uploaded_file)
         st.image(image, caption="Image téléchargée", use_column_width=True)
-        
+
         # Prédiction
         if model is not None and categories is not None:
             with st.spinner("Classification en cours..."):
                 predictions = predict_image(model, image, categories)
-                
+
                 # Afficher les résultats
                 st.subheader("Résultats de la classification")
                 # Visualisation des résultats
