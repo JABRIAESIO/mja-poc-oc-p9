@@ -3,22 +3,22 @@ import json
 import requests
 import tempfile
 import tensorflow as tf
-from tensorflow.keras.models import load_model
-import tensorflow.keras.backend as K
+import keras
+from keras.models import load_model
+import keras.backend as K
 import numpy as np
 import time
 from PIL import Image
 import streamlit as st  # Ajout de l'import streamlit
 
-# Force l'utilisation de tf.keras au lieu de keras standalone
-os.environ['TF_USE_LEGACY_KERAS'] = '1'  # Désactive Keras 3
-os.environ['KERAS_BACKEND'] = 'tensorflow'  # Force le backend TF
+# Utilise TensorFlow comme backend pour Keras 3
+os.environ['KERAS_BACKEND'] = 'tensorflow'
 
 # Importer depuis utils.preprocessing au lieu d'autres modules
 from utils.preprocessing import preprocess_image_for_convnext, resize_and_pad_image
 
 # Configuration pour permettre la désérialisation des couches Lambda
-tf.keras.config.enable_unsafe_deserialization()
+keras.config.enable_unsafe_deserialization()
 
 # URL du modèle sur Hugging Face
 HF_MODEL_URL = "https://huggingface.co/mourad42008/convnext-tiny-flipkart-classification/resolve/main/model_final.keras"
@@ -119,8 +119,8 @@ def load_model_from_huggingface():
         if os.path.exists(model_path):
             update_loading_status(f"Chargement du modèle local depuis {model_path}...")
             try:
-                # Pour un SavedModel, utiliser tf.keras.models.load_model directement
-                model = tf.keras.models.load_model(model_path)
+                # Pour un SavedModel, utiliser keras.models.load_model directement
+                model = keras.models.load_model(model_path)
                 update_loading_status("Modèle local chargé avec succès!", "success")
                 return model
             except ValueError as e:
@@ -128,19 +128,18 @@ def load_model_from_huggingface():
                 update_loading_status("Tentative de chargement avec TFSMLayer...")
                 try:
                     # Utiliser TFSMLayer pour charger un SavedModel format
-                    from tensorflow.keras.layers import Lambda
-                    from tensorflow.keras.models import Sequential
-                    
+                    from keras.layers import TFSMLayer
+                    from keras.models import Sequential
+
                     # Créer un modèle qui charge le SavedModel en tant que couche
                     model = Sequential([
-                        Lambda(lambda _: tf.saved_model.load(model_path), 
-                               input_shape=(None,))
+                        TFSMLayer(model_path, call_endpoint='serving_default')
                     ])
-                    update_loading_status("Modèle chargé avec Lambda layer!", "success")
+                    update_loading_status("Modèle chargé avec TFSMLayer!", "success")
                     return model
                 except Exception as inner_e:
-                    update_loading_status(f"Erreur avec Lambda layer: {inner_e}", "error")
-                    
+                    update_loading_status(f"Erreur avec TFSMLayer: {inner_e}", "error")
+
                     # Dernière tentative avec un chargement différent
                     try:
                         update_loading_status("Tentative de chargement direct avec tf.saved_model.load...", "info")
@@ -214,17 +213,17 @@ def load_model_from_huggingface():
                     update_loading_status(f"Erreur avec tf.saved_model.load: {sm_e}", "error")
                     # Essayer avec une approche plus standard pour les SavedModel
                     try:
-                        model = tf.keras.models.load_model(temp_path)
-                        update_loading_status("Modèle chargé avec tf.keras.models.load_model!", "success")
+                        model = keras.models.load_model(temp_path)
+                        update_loading_status("Modèle chargé avec keras.models.load_model!", "success")
                     except Exception as keras_e:
-                        update_loading_status(f"Erreur avec tf.keras.models.load_model: {keras_e}", "error")
+                        update_loading_status(f"Erreur avec keras.models.load_model: {keras_e}", "error")
                         return None
             else:
                 # Si ce n'est pas un SavedModel, essayer avec les méthodes standard Keras
                 update_loading_status("Modèle n'est pas un SavedModel, tentative avec load_model standard...", "info")
                 try:
-                    model = tf.keras.models.load_model(temp_path)
-                    update_loading_status("Modèle chargé avec tf.keras.models.load_model standard!", "success")
+                    model = keras.models.load_model(temp_path)
+                    update_loading_status("Modèle chargé avec keras.models.load_model standard!", "success")
                 except Exception as keras_e:
                     update_loading_status(f"Erreur avec load_model standard: {keras_e}", "error")
                     return None
@@ -232,8 +231,8 @@ def load_model_from_huggingface():
             update_loading_status(f"Erreur lors de la vérification du format: {format_e}", "error")
             # Dernière tentative avec la méthode standard
             try:
-                model = tf.keras.models.load_model(temp_path)
-                update_loading_status("Modèle chargé avec tf.keras.models.load_model (dernière tentative)!", "success")
+                model = keras.models.load_model(temp_path)
+                update_loading_status("Modèle chargé avec keras.models.load_model (dernière tentative)!", "success")
             except Exception as last_e:
                 update_loading_status(f"Échec de toutes les tentatives de chargement: {last_e}", "error")
                 return None
@@ -241,7 +240,7 @@ def load_model_from_huggingface():
         # Sauvegarder le modèle localement pour une utilisation future
         try:
             update_loading_status(f"Sauvegarde du modèle vers {model_path}...", "info")
-            # Utiliser tf.saved_model.save pour un format compatible
+            # Utiliser keras.models.save pour un format compatible
             if hasattr(model, 'save'):
                 model.save(model_path)
             else:

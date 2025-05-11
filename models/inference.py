@@ -1,14 +1,14 @@
 import numpy as np
 import time
 import tensorflow as tf
+import os
+import keras
 from PIL import Image
 import matplotlib.pyplot as plt
 import traceback
 
-# Force l'utilisation de tf.keras au lieu de keras standalone
-import os
-os.environ['TF_USE_LEGACY_KERAS'] = '1'  # Désactive Keras 3
-os.environ['KERAS_BACKEND'] = 'tensorflow'  # Force le backend TF
+# Utilise TensorFlow comme backend pour Keras 3
+os.environ['KERAS_BACKEND'] = 'tensorflow'
 
 # Importer depuis utils.preprocessing au lieu d'importer de model_loader
 from utils.preprocessing import preprocess_image_for_convnext, resize_and_pad_image, apply_data_augmentation
@@ -47,6 +47,9 @@ def predict_image(model, image, categories, verbose=True):
             # Pour un modèle keras standard
             if hasattr(model, 'predict'):
                 predictions = model.predict(preprocessed_image, verbose=0)
+                # S'assurer que le format du résultat est compatible
+                if isinstance(predictions, list):
+                    predictions = predictions[0]  # Keras 3 peut retourner une liste de tenseurs
             # Pour un SavedModel
             elif hasattr(model, 'signatures'):
                 # Obtenir la signature par défaut
@@ -69,7 +72,7 @@ def predict_image(model, image, categories, verbose=True):
         except Exception as e:
             if verbose:
                 print(f"Erreur lors de la prédiction standard: {e}")
-            
+
             # Tentative de dernier recours avec un modèle SavedModel
             try:
                 if hasattr(model, 'signatures'):
@@ -82,7 +85,7 @@ def predict_image(model, image, categories, verbose=True):
                     raise ValueError("Modèle incompatible")
             except Exception as inner_e:
                 raise ValueError(f"Échec de toutes les méthodes de prédiction: {str(e)} puis {str(inner_e)}")
-        
+
         inference_time = time.time() - inference_start
 
         # Temps total (prétraitement + inférence)
@@ -151,16 +154,24 @@ def plot_prediction_bars(predictions, title="Probabilités par classe", figsize=
     Génère un graphique à barres des probabilités de prédiction.
 
     Args:
-        predictions: Liste des prédictions (dictionnaires avec class_name et probability)
+        predictions: Dictionnaire avec class_name comme clé et probability comme valeur
+                    ou liste de dictionnaires avec class_name et probability
         title: Titre du graphique
         figsize: Taille de la figure
 
     Returns:
         Figure matplotlib
     """
-    # Extraire les noms de classes et probabilités
-    class_names = [pred['class_name'] for pred in predictions]
-    probabilities = [pred['probability'] * 100 for pred in predictions]
+    # Convertir le dictionnaire en listes triées
+    if isinstance(predictions, dict):
+        # Si c'est un dictionnaire, le convertir en liste triée
+        items = sorted(predictions.items(), key=lambda x: x[1], reverse=True)
+        class_names = [item[0] for item in items]
+        probabilities = [item[1] * 100 for item in items]
+    else:
+        # Sinon, supposer que c'est une liste de dictionnaires
+        class_names = [pred['class_name'] for pred in predictions]
+        probabilities = [pred['probability'] * 100 for pred in predictions]
 
     # Créer la figure
     fig, ax = plt.subplots(figsize=figsize)
@@ -231,14 +242,14 @@ def extract_features(model, image, layer_name=None):
         if not hasattr(model, 'layers'):
             print("Extraction de caractéristiques non disponible pour les modèles SavedModel")
             return None
-            
+
         # Si layer_name est None, trouver l'avant-dernière couche
         if layer_name is None:
             # Généralement l'avant-dernière couche pour la classification
             layer_name = model.layers[-2].name
 
         # Créer un modèle qui renvoie les sorties jusqu'à la couche spécifiée
-        feature_model = tf.keras.Model(
+        feature_model = keras.Model(
             inputs=model.input,
             outputs=model.get_layer(layer_name).output
         )
@@ -249,6 +260,9 @@ def extract_features(model, image, layer_name=None):
 
         # Extraire les caractéristiques
         features = feature_model.predict(image)
+        # Compatibilité avec Keras 3
+        if isinstance(features, list):
+            features = features[0]
 
         return features
 
@@ -298,7 +312,7 @@ def get_model_summary_dict(model):
             if hasattr(model, 'signatures'):
                 signature_keys = list(model.signatures.keys()) if hasattr(model, 'signatures') else []
                 input_signature = model.signatures['serving_default'].structured_input_signature if 'serving_default' in signature_keys else None
-                
+
                 summary = {
                     "name": "SavedModel",
                     "type": "SavedModel",
@@ -306,13 +320,13 @@ def get_model_summary_dict(model):
                     "input_signature": str(input_signature),
                     "layers": []
                 }
-                
+
                 # Ajouter des informations sur les signatures disponibles
                 if 'serving_default' in signature_keys:
                     serving_signature = model.signatures['serving_default']
                     input_specs = serving_signature.structured_input_signature
                     output_specs = serving_signature.structured_outputs
-                    
+
                     summary["serving_default"] = {
                         "inputs": str(input_specs),
                         "outputs": str(output_specs)
@@ -324,7 +338,7 @@ def get_model_summary_dict(model):
                     "type": str(type(model)),
                     "note": "Informations détaillées non disponibles pour ce type de modèle"
                 }
-                
+
         return summary
 
     except Exception as e:
@@ -332,7 +346,7 @@ def get_model_summary_dict(model):
 
 # Si exécuté directement, tester les fonctions
 if __name__ == "__main__":
-    from tensorflow.keras.applications import EfficientNetB0
+    from keras.applications import EfficientNetB0
 
     print("Test du script d'inférence...")
 

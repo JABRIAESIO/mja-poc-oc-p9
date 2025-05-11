@@ -14,9 +14,8 @@ import sys
 import platform
 import psutil
 
-# Force l'utilisation de tf.keras au lieu de keras standalone
-os.environ['TF_USE_LEGACY_KERAS'] = '1'  # Désactive Keras 3
-os.environ['KERAS_BACKEND'] = 'tensorflow'  # Force le backend TF
+# Utilise TensorFlow comme backend pour Keras 3
+os.environ['KERAS_BACKEND'] = 'tensorflow'
 
 from models.model_loader import load_efficientnet_transformer_model, load_categories, get_model_paths, get_hugging_face_token, HF_MODEL_URL
 from models.inference import predict_image, plot_prediction_bars
@@ -128,44 +127,6 @@ def test_hugging_face_connection():
             st.exception(e)
         return False
 
-# Informations système pour le débogage
-with st.sidebar:
-    st.title("Informations système")
-
-    # Afficher les informations avec des étiquettes claires
-    system_info = {
-        "Version Python": platform.python_version(),
-        "Mémoire disponible": f"{psutil.virtual_memory().available / (1024 * 1024):.2f} MB",
-        "Nombre de CPU": os.cpu_count(),
-        "Répertoire de travail": os.getcwd()
-    }
-
-    for label, value in system_info.items():
-        st.markdown(f"**{label}:** {value}")
-
-    # Afficher l'URL et le chemin du modèle pour débogage
-    paths = get_model_paths()
-    st.markdown("### Informations modèle")
-    st.markdown(f"**URL Hugging Face:** {HF_MODEL_URL}")
-    st.markdown(f"**Chemin local:** {paths['convnext_model']}")
-
-    # Test de connexion à Hugging Face avec la nouvelle fonction
-    if st.button("Tester la connexion à Hugging Face", help="Vérifie si l'application peut accéder au modèle sur Hugging Face"):
-        test_hugging_face_connection()
-
-# Titre principal avec description claire
-st.title("🛒 Classifieur d'Images - Flipkart")
-st.markdown("""
-Cette application permet de classifier des images selon différentes catégories en utilisant un modèle ConvNeXtTiny.
-
-**Comment utiliser cette application:**
-1. Téléchargez une image de produit
-2. Le modèle analysera automatiquement l'image
-3. Les résultats de classification s'afficheront ci-dessous
-
-Développé dans le cadre du projet 9 de la formation OpenClassrooms "Machine Learning Engineer".
-""")
-
 def load_example_images():
     """
     Charge les exemples d'images disponibles dans le dossier assets/examples
@@ -188,7 +149,7 @@ def load_example_images():
 
     return [os.path.join(examples_dir, f) for f in image_files]
 
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def load_model():
     """
     Charge le modèle de classification et les catégories.
@@ -199,7 +160,7 @@ def load_model():
     """
     # Créer un placeholder pour les messages de chargement
     loading_placeholder = st.empty()
-    
+
     with st.spinner('Chargement du modèle en cours. Cela peut prendre quelques instants...'):
         try:
             # Test de connexion à Hugging Face
@@ -235,14 +196,14 @@ def load_model():
 
             # Information sur le chargement réussi
             loading_placeholder.success(f"✅ Modèle chargé avec succès en {loading_time:.2f} secondes!")
-            
+
             # Chargement des catégories
             categories = load_categories()
             loading_placeholder.success("Catégories chargées avec succès!")
-            
+
             # Effacer le placeholder une fois le chargement terminé
             loading_placeholder.empty()
-            
+
             return model, categories
 
         except Exception as e:
@@ -259,127 +220,82 @@ def load_model():
 
             return None, None
 
-# Chargement du modèle
-model, categories = load_model()
+def main():
+    # Informations système pour le débogage
+    with st.sidebar:
+        st.title("Informations système")
 
-# Interface pour sélectionner entre upload et exemples
-st.header("Sélection de l'image")
-source_option = st.radio(
-    "Comment souhaitez-vous fournir une image?",
-    ["Télécharger une image", "Utiliser un exemple"],
-    help="Choisissez si vous voulez télécharger votre propre image ou utiliser une image d'exemple"
-)
+        # Afficher les informations avec des étiquettes claires
+        system_info = {
+            "Version Python": platform.python_version(),
+            "Mémoire disponible": f"{psutil.virtual_memory().available / (1024 * 1024):.2f} MB",
+            "Nombre de CPU": os.cpu_count(),
+            "Répertoire de travail": os.getcwd()
+        }
 
-if source_option == "Télécharger une image":
-    # Interface utilisateur pour l'upload d'images
-    uploaded_file = st.file_uploader(
-        "Choisissez une image à classifier (JPG, JPEG ou PNG)",
-        type=["jpg", "jpeg", "png"],
-        help="L'image sera analysée par le modèle de classification"
+        for label, value in system_info.items():
+            st.markdown(f"**{label}:** {value}")
+
+        # Afficher l'URL et le chemin du modèle pour débogage
+        paths = get_model_paths()
+        st.markdown("### Informations modèle")
+        st.markdown(f"**URL Hugging Face:** {HF_MODEL_URL}")
+        st.markdown(f"**Chemin local:** {paths['convnext_model']}")
+
+        # Test de connexion à Hugging Face avec la nouvelle fonction
+        if st.button("Tester la connexion à Hugging Face", help="Vérifie si l'application peut accéder au modèle sur Hugging Face"):
+            test_hugging_face_connection()
+
+    # Titre principal avec description claire
+    st.title("🛒 Classifieur d'Images - Flipkart")
+    st.markdown("""
+    Cette application permet de classifier des images selon différentes catégories en utilisant un modèle ConvNeXtTiny.
+
+    **Comment utiliser cette application:**
+    1. Téléchargez une image de produit
+    2. Le modèle analysera automatiquement l'image
+    3. Les résultats de classification s'afficheront ci-dessous
+
+    Développé dans le cadre du projet 9 de la formation OpenClassrooms "Machine Learning Engineer".
+    """)
+
+    # Chargement du modèle
+    model, categories = load_model()
+
+    # Interface pour sélectionner entre upload et exemples
+    st.header("Sélection de l'image")
+    source_option = st.radio(
+        "Comment souhaitez-vous fournir une image?",
+        ["Télécharger une image", "Utiliser un exemple"],
+        help="Choisissez si vous voulez télécharger votre propre image ou utiliser une image d'exemple"
     )
 
-    if uploaded_file is not None:
-        # Traitement de l'image téléchargée
-        try:
-            image = Image.open(uploaded_file)
-            # Afficher l'image avec une description accessible
-            st.image(
-                image,
-                caption=f"Image téléchargée: {uploaded_file.name}",
-                use_column_width=True,
-                output_format="PNG"  # Format stable pour l'affichage
-            )
-
-            # Prédiction
-            if model is not None and categories is not None:
-                with st.spinner("Classification en cours... Veuillez patienter."):
-                    # Utilisation de la fonction predict_image de models.inference qui gère différents types de modèles
-                    result = predict_image(model, image, categories)
-                    
-                    if "error" in result:
-                        st.error(f"Erreur lors de la prédiction: {result['error']}")
-                        with st.expander("Détails de l'erreur"):
-                            st.code(result.get("error_trace", "Pas de détails supplémentaires disponibles"))
-                    else:
-                        # Extraction des prédictions
-                        predicted_class = result["predicted_class"]
-                        confidence = result["confidence"]
-                        all_predictions = result["all_predictions"]
-                        
-                        # Afficher les résultats
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            st.subheader("Résultat de la classification")
-                            st.success(f"Catégorie prédite: **{predicted_class}**")
-                            st.progress(confidence)
-                            st.info(f"Confiance: {confidence*100:.2f}%")
-                            
-                            # Afficher un tableau de résultats textuels pour accessibilité
-                            st.markdown("### Probabilités par catégorie")
-                            results_table = []
-                            
-                            for pred in all_predictions:
-                                results_table.append({
-                                    "Catégorie": pred["class_name"],
-                                    "Probabilité": f"{pred['probability']*100:.2f}%"
-                                })
-                            
-                            st.table(results_table)
-
-                        with col2:
-                            # Visualisation graphique
-                            st.markdown("### Visualisation graphique")
-                            # Créer un dictionnaire pour la fonction plot_prediction_bars
-                            prediction_dict = {pred["class_name"]: pred["probability"] for pred in all_predictions}
-                            fig = plot_prediction_bars(prediction_dict)
-                            st.pyplot(fig)
-                            
-                        # Information sur les performances
-                        with st.expander("Informations sur les performances"):
-                            st.markdown(f"""
-                            - **Temps de prétraitement**: {result['preprocess_time']*1000:.2f} ms
-                            - **Temps d'inférence**: {result['inference_time']*1000:.2f} ms
-                            - **Temps total**: {result['total_time']*1000:.2f} ms
-                            """)
-        except Exception as e:
-            st.error(f"Erreur lors du traitement de l'image")
-            with st.expander("Détails techniques de l'erreur"):
-                st.error(f"Description: {str(e)}")
-                st.code(traceback.format_exc())
-else:
-    # Chargement et affichage des exemples
-    examples = load_example_images()
-
-    if examples:
-        # Sélection d'un exemple avec descriptions accessibles
-        example_options = [os.path.basename(ex) for ex in examples]
-        selected_example_name = st.selectbox(
-            "Sélectionnez une image exemple",
-            example_options,
-            help="Choisissez parmi les images d'exemple disponibles"
+    if source_option == "Télécharger une image":
+        # Interface utilisateur pour l'upload d'images
+        uploaded_file = st.file_uploader(
+            "Choisissez une image à classifier (JPG, JPEG ou PNG)",
+            type=["jpg", "jpeg", "png"],
+            help="L'image sera analysée par le modèle de classification"
         )
 
-        # Retrouver le chemin complet
-        selected_example = next((ex for ex in examples if os.path.basename(ex) == selected_example_name), None)
-
-        if selected_example:
+        if uploaded_file is not None:
+            # Traitement de l'image téléchargée
             try:
-                image = Image.open(selected_example)
+                image = Image.open(uploaded_file)
                 # Afficher l'image avec une description accessible
                 st.image(
                     image,
-                    caption=f"Exemple: {os.path.basename(selected_example)}",
+                    caption=f"Image téléchargée: {uploaded_file.name}",
                     use_column_width=True,
-                    output_format="PNG"
+                    output_format="PNG"  # Format stable pour l'affichage
                 )
 
-                # Prédiction sur l'exemple
+                # Prédiction
                 if model is not None and categories is not None:
                     with st.spinner("Classification en cours... Veuillez patienter."):
-                        # Utilisation de la fonction predict_image de models.inference
+                        # Utilisation de la fonction predict_image de models.inference qui gère différents types de modèles
                         result = predict_image(model, image, categories)
-                        
+
                         if "error" in result:
                             st.error(f"Erreur lors de la prédiction: {result['error']}")
                             with st.expander("Détails de l'erreur"):
@@ -389,26 +305,26 @@ else:
                             predicted_class = result["predicted_class"]
                             confidence = result["confidence"]
                             all_predictions = result["all_predictions"]
-                            
+
                             # Afficher les résultats
                             col1, col2 = st.columns(2)
-                            
+
                             with col1:
                                 st.subheader("Résultat de la classification")
                                 st.success(f"Catégorie prédite: **{predicted_class}**")
                                 st.progress(confidence)
                                 st.info(f"Confiance: {confidence*100:.2f}%")
-                                
+
                                 # Afficher un tableau de résultats textuels pour accessibilité
                                 st.markdown("### Probabilités par catégorie")
                                 results_table = []
-                                
+
                                 for pred in all_predictions:
                                     results_table.append({
                                         "Catégorie": pred["class_name"],
                                         "Probabilité": f"{pred['probability']*100:.2f}%"
                                     })
-                                
+
                                 st.table(results_table)
 
                             with col2:
@@ -418,7 +334,7 @@ else:
                                 prediction_dict = {pred["class_name"]: pred["probability"] for pred in all_predictions}
                                 fig = plot_prediction_bars(prediction_dict)
                                 st.pyplot(fig)
-                                
+
                             # Information sur les performances
                             with st.expander("Informations sur les performances"):
                                 st.markdown(f"""
@@ -427,24 +343,112 @@ else:
                                 - **Temps total**: {result['total_time']*1000:.2f} ms
                                 """)
             except Exception as e:
-                st.error(f"Erreur lors du traitement de l'image exemple")
+                st.error(f"Erreur lors du traitement de l'image")
                 with st.expander("Détails techniques de l'erreur"):
                     st.error(f"Description: {str(e)}")
                     st.code(traceback.format_exc())
     else:
-        st.warning("Aucun exemple d'image n'a été trouvé. Veuillez télécharger votre propre image.")
-        with st.expander("Informations de dépannage"):
-            st.write("Répertoire de travail:", os.getcwd())
-            st.write("Contenu du répertoire:", os.listdir("."))
-            if os.path.exists("assets"):
-                st.write("Contenu du répertoire assets:", os.listdir("assets"))
+        # Chargement et affichage des exemples
+        examples = load_example_images()
 
-# Pied de page avec informations complémentaires
-st.markdown("---")
-st.markdown("""
-### À propos de cette application
-Cette application de classification d'images utilise un modèle ConvNeXtTiny entraîné sur un dataset Flipkart.
-Elle a été développée dans le cadre du projet 9 de la formation OpenClassrooms "Machine Learning Engineer".
+        if examples:
+            # Sélection d'un exemple avec descriptions accessibles
+            example_options = [os.path.basename(ex) for ex in examples]
+            selected_example_name = st.selectbox(
+                "Sélectionnez une image exemple",
+                example_options,
+                help="Choisissez parmi les images d'exemple disponibles"
+            )
 
-Pour plus d'informations sur le modèle, consultez [Hugging Face](https://huggingface.co/mourad42008/convnext-tiny-flipkart-classification).
-""")
+            # Retrouver le chemin complet
+            selected_example = next((ex for ex in examples if os.path.basename(ex) == selected_example_name), None)
+
+            if selected_example:
+                try:
+                    image = Image.open(selected_example)
+                    # Afficher l'image avec une description accessible
+                    st.image(
+                        image,
+                        caption=f"Exemple: {os.path.basename(selected_example)}",
+                        use_column_width=True,
+                        output_format="PNG"
+                    )
+
+                    # Prédiction sur l'exemple
+                    if model is not None and categories is not None:
+                        with st.spinner("Classification en cours... Veuillez patienter."):
+                            # Utilisation de la fonction predict_image de models.inference
+                            result = predict_image(model, image, categories)
+
+                            if "error" in result:
+                                st.error(f"Erreur lors de la prédiction: {result['error']}")
+                                with st.expander("Détails de l'erreur"):
+                                    st.code(result.get("error_trace", "Pas de détails supplémentaires disponibles"))
+                            else:
+                                # Extraction des prédictions
+                                predicted_class = result["predicted_class"]
+                                confidence = result["confidence"]
+                                all_predictions = result["all_predictions"]
+
+                                # Afficher les résultats
+                                col1, col2 = st.columns(2)
+
+                                with col1:
+                                    st.subheader("Résultat de la classification")
+                                    st.success(f"Catégorie prédite: **{predicted_class}**")
+                                    st.progress(confidence)
+                                    st.info(f"Confiance: {confidence*100:.2f}%")
+
+                                    # Afficher un tableau de résultats textuels pour accessibilité
+                                    st.markdown("### Probabilités par catégorie")
+                                    results_table = []
+
+                                    for pred in all_predictions:
+                                        results_table.append({
+                                            "Catégorie": pred["class_name"],
+                                            "Probabilité": f"{pred['probability']*100:.2f}%"
+                                        })
+
+                                    st.table(results_table)
+
+                                with col2:
+                                    # Visualisation graphique
+                                    st.markdown("### Visualisation graphique")
+                                    # Créer un dictionnaire pour la fonction plot_prediction_bars
+                                    prediction_dict = {pred["class_name"]: pred["probability"] for pred in all_predictions}
+                                    fig = plot_prediction_bars(prediction_dict)
+                                    st.pyplot(fig)
+
+                                # Information sur les performances
+                                with st.expander("Informations sur les performances"):
+                                    st.markdown(f"""
+                                    - **Temps de prétraitement**: {result['preprocess_time']*1000:.2f} ms
+                                    - **Temps d'inférence**: {result['inference_time']*1000:.2f} ms
+                                    - **Temps total**: {result['total_time']*1000:.2f} ms
+                                    """)
+                except Exception as e:
+                    st.error(f"Erreur lors du traitement de l'image exemple")
+                    with st.expander("Détails techniques de l'erreur"):
+                        st.error(f"Description: {str(e)}")
+                        st.code(traceback.format_exc())
+        else:
+            st.warning("Aucun exemple d'image n'a été trouvé. Veuillez télécharger votre propre image.")
+            with st.expander("Informations de dépannage"):
+                st.write("Répertoire de travail:", os.getcwd())
+                st.write("Contenu du répertoire:", os.listdir("."))
+                if os.path.exists("assets"):
+                    st.write("Contenu du répertoire assets:", os.listdir("assets"))
+
+    # Pied de page avec informations complémentaires
+    st.markdown("---")
+    st.markdown("""
+    ### À propos de cette application
+    Cette application de classification d'images utilise un modèle ConvNeXtTiny entraîné sur un dataset Flipkart.
+    Elle a été développée dans le cadre du projet 9 de la formation OpenClassrooms "Machine Learning Engineer".
+
+    Pour plus d'informations sur le modèle, consultez [Hugging Face](https://huggingface.co/mourad42008/convnext-tiny-flipkart-classification).
+    """)
+
+# Point d'entrée principal
+if __name__ == "__main__":
+    main()
