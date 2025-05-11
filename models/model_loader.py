@@ -79,13 +79,26 @@ def load_model_from_huggingface():
         if os.path.exists(model_path):
             print(f"Chargement du modèle local depuis {model_path}")
             try:
+                # Essayer d'abord avec la méthode standard
                 return load_model(model_path)
-            except Exception as local_error:
-                print(f"Erreur lors du chargement du modèle local: {local_error}")
-                print("Tentative de téléchargement depuis Hugging Face...")
-                # Si le chargement local échoue, on continue pour télécharger
+            except ValueError as e:
+                print(f"Erreur standard de chargement: {e}")
+                print("Tentative de chargement avec TFSMLayer...")
+                try:
+                    # Utiliser TFSMLayer comme suggéré dans l'erreur
+                    from keras.layers import TFSMLayer
+                    from keras.models import Sequential
+                    
+                    model = Sequential([
+                        TFSMLayer(model_path, call_endpoint='serving_default')
+                    ])
+                    print("Modèle chargé avec TFSMLayer")
+                    return model
+                except Exception as inner_e:
+                    print(f"Erreur avec TFSMLayer: {inner_e}")
+                    return None
 
-        # Télécharger le modèle depuis Hugging Face
+        # Sinon, télécharger le modèle depuis Hugging Face
         print(f"Téléchargement du modèle depuis Hugging Face: {HF_MODEL_URL}")
 
         # Créer un fichier temporaire pour le téléchargement
@@ -126,47 +139,53 @@ def load_model_from_huggingface():
         # Charger le modèle
         print(f"Chargement du modèle depuis le fichier temporaire: {temp_path}")
         try:
+            # Essayer d'abord avec la méthode standard
             model = load_model(temp_path)
-            
-            # Sauvegarder le modèle localement pour une utilisation future
+            print("Modèle chargé avec load_model standard")
+        except ValueError as e:
+            print(f"Erreur standard de chargement: {e}")
+            print("Tentative de chargement avec TFSMLayer...")
+            try:
+                # Utiliser TFSMLayer comme suggéré dans l'erreur
+                from keras.layers import TFSMLayer
+                from keras.models import Sequential
+                
+                model = Sequential([
+                    TFSMLayer(temp_path, call_endpoint='serving_default')
+                ])
+                print("Modèle chargé avec TFSMLayer")
+            except Exception as inner_e:
+                print(f"Erreur avec TFSMLayer: {inner_e}")
+                # Dernière tentative avec tf.keras
+                try:
+                    import tensorflow as tf
+                    model = tf.keras.models.load_model(temp_path)
+                    print("Modèle chargé avec tf.keras.models.load_model")
+                except Exception as tf_e:
+                    print(f"Erreur avec tf.keras.models.load_model: {tf_e}")
+                    return None
+
+        # Sauvegarder le modèle localement pour une utilisation future
+        try:
             print(f"Sauvegarde du modèle vers: {model_path}")
             model.save(model_path)
-            
-            # Supprimer le fichier temporaire
-            os.unlink(temp_path)
-            
-            return model
-        except Exception as e:
-            print(f"Erreur lors du chargement du modèle téléchargé: {e}")
-            
-            # Essayer une approche alternative avec TensorFlow directement
+        except Exception as save_e:
+            print(f"Erreur lors de la sauvegarde du modèle: {save_e}")
+            # Copier le fichier temporaire comme alternative
+            import shutil
             try:
-                print("Tentative de chargement avec tf.keras.models.load_model...")
-                model = tf.keras.models.load_model(temp_path)
-                
-                # Sauvegarder le modèle localement si réussi
-                print(f"Sauvegarde du modèle vers: {model_path}")
-                model.save(model_path)
-                
-                # Supprimer le fichier temporaire
-                os.unlink(temp_path)
-                
-                return model
-            except Exception as tf_error:
-                print(f"Erreur lors du chargement avec TensorFlow: {tf_error}")
-                
-                # En dernier recours, garder le fichier téléchargé
-                import shutil
-                print(f"Copie du fichier téléchargé vers: {model_path}")
                 shutil.copy2(temp_path, model_path)
-                os.unlink(temp_path)
-                
-                print("Tentative finale de chargement...")
-                try:
-                    return load_model(model_path)
-                except Exception as final_error:
-                    print(f"Échec de toutes les tentatives de chargement: {final_error}")
-                    return None
+                print(f"Fichier temporaire copié à la place")
+            except Exception as copy_e:
+                print(f"Erreur lors de la copie du fichier: {copy_e}")
+
+        # Supprimer le fichier temporaire
+        try:
+            os.unlink(temp_path)
+        except:
+            pass
+
+        return model
 
     except Exception as e:
         import traceback
@@ -179,7 +198,6 @@ def load_model_from_huggingface():
                 print(f"Code d'état HTTP: {response.status_code}")
                 print(f"URL finale: {response.url}")
                 print(f"En-têtes de réponse: {dict(response.headers)}")
-                print(f"Début du contenu de la réponse: {response.text[:500] if hasattr(response, 'text') else 'Non disponible'}")
         except:
             pass
 
