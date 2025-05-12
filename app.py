@@ -463,7 +463,7 @@ def main():
 
     Pour plus d'informations sur le modèle, consultez [Hugging Face](https://huggingface.co/mourad42008/convnext-tiny-flipkart-classification).
     """)
-# date 11/05/2025 21h49
+# date 1205/2025 18h20
 # Point d'entrée principal
 if __name__ == "__main__":
     main()
