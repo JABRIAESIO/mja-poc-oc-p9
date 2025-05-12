@@ -14,6 +14,11 @@ import sys
 import platform
 import psutil
 
+# AJOUT TEMPORAIRE - DÉBUT
+st.write("DEBUG: App démarrée")
+st.write("DEBUG: Imports réussis")
+# FIN AJOUT
+
 # Utilise TensorFlow comme backend pour Keras 3
 os.environ['KERAS_BACKEND'] = 'tensorflow'
 
@@ -149,7 +154,8 @@ def load_example_images():
 
     return [os.path.join(examples_dir, f) for f in image_files]
 
-@st.cache_resource(show_spinner=False)
+# COMMENTER CETTE LIGNE POUR DÉSACTIVER LE CACHE
+# @st.cache_resource(show_spinner=False)
 def load_model():
     """
     Charge le modèle de classification et les catégories.
@@ -158,19 +164,30 @@ def load_model():
     Returns:
         tuple: (modèle, dictionnaire des catégories) ou (None, None) en cas d'erreur
     """
+    # AJOUT TEMPORAIRE POUR VOIR SI ÇA MARCHE
+    st.error("🔥 LOAD_MODEL APPELÉE SANS CACHE")
+    
     # Créer un placeholder pour les messages de chargement
     loading_placeholder = st.empty()
+
+    # AJOUTEZ CETTE LIGNE AU DÉBUT
+    loading_placeholder.error("DEBUG: load_model() appelée")
 
     with st.spinner('Chargement du modèle en cours. Cela peut prendre quelques instants...'):
         try:
             # Test de connexion à Hugging Face
             loading_placeholder.info("Test de connexion à Hugging Face...")
             test_result = test_hugging_face_connection()
+            
+            # AJOUTEZ CES LIGNES
+            loading_placeholder.error(f"DEBUG: test_result = {test_result}")
+            
             if not test_result:
                 loading_placeholder.warning("La connexion à Hugging Face a échoué, mais nous allons essayer de charger le modèle quand même.")
 
             # Obtention des chemins
             paths = get_model_paths()
+            loading_placeholder.error(f"DEBUG: paths = {paths}")
             loading_placeholder.info(f"Recherche du modèle dans: {paths['convnext_model']}")
 
             # Mesure du temps de chargement du modèle
@@ -178,7 +195,10 @@ def load_model():
 
             # Utilisation de la fonction load_efficientnet_transformer_model qui redirige vers ConvNeXtTiny
             loading_placeholder.info("Chargement du modèle ConvNeXtTiny...")
+            # AJOUTEZ CES LIGNES
+            loading_placeholder.error("DEBUG: Appel load_efficientnet_transformer_model")
             model = load_efficientnet_transformer_model(loading_placeholder)
+            loading_placeholder.error(f"DEBUG: Modèle retourné = {model}")
 
             end_time = time.time()
             loading_time = end_time - start_time
@@ -221,7 +241,11 @@ def load_model():
             return None, None
 
 def main():
-
+    # AJOUT TEMPORAIRE - FORCE CLEAR CACHE
+    if st.button("🔨 FORCE CLEAR CACHE"):
+        st.cache_resource.clear()
+        st.experimental_rerun()
+    
     # forcer le vidage du cash :
     st.cache_resource.clear()  # Force vider le cache des ressources
 
@@ -263,8 +287,15 @@ def main():
     Développé dans le cadre du projet 9 de la formation OpenClassrooms "Machine Learning Engineer".
     """)
 
+    # AJOUT DEBUG
+    st.write("🔍 DEBUG: Avant appel load_model()")
+    
     # Chargement du modèle
     model, categories = load_model()
+    
+    # AJOUT DEBUG
+    st.write(f"🔍 DEBUG: Après load_model() - model={model}, categories={categories}")
+    
     # débug du chargement du model
     if model is not None and categories is not None:
         st.sidebar.success("✅ Modèle et catégories chargés")
@@ -463,7 +494,7 @@ def main():
 
     Pour plus d'informations sur le modèle, consultez [Hugging Face](https://huggingface.co/mourad42008/convnext-tiny-flipkart-classification).
     """)
-# date 1205/2025 18h20
+# date 11/05/2025 21h49
 # Point d'entrée principal
 if __name__ == "__main__":
     main()
