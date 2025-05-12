@@ -1,12 +1,13 @@
-numpy==1.24.3
+numpy
+streamlit==1.29.0
 tensorflow==2.15.1
 keras==2.15.0
 protobuf==3.20.3
 h5py==3.10.0
 pandas==2.0.3
 Pillow==10.0.1
-opencv-python-headless==4.8.0.76
+opencv-python==4.8.0.76
 scikit-learn==1.3.0
 matplotlib==3.7.1
-tensorboard==2.15.0  # CORRIGÉ: compatible avec TF 2.15.1
+tensorboard==2.15.0
 psutil==5.9.6
