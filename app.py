@@ -221,6 +221,10 @@ def load_model():
             return None, None
 
 def main():
+
+    # forcer le vidage du cash :
+    st.cache_resource.clear()  # Force vider le cache des ressources
+
     # Informations système pour le débogage
     with st.sidebar:
         st.title("Informations système")
