@@ -266,7 +266,7 @@ def main():
     # Chargement du modèle
     model, categories = load_model()
     # débug du chargement du model
-	if model is not None and categories is not None:
+    if model is not None and categories is not None:
         st.sidebar.success("✅ Modèle et catégories chargés")
         st.sidebar.info(f"Type modèle: {type(model)}")
         st.sidebar.info(f"Nombre catégories: {len(categories)}")

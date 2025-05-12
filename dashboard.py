@@ -760,7 +760,7 @@ def main():
                     # Créer une image simulée pour la démonstration
                     img = Image.new('RGB', (224, 224), color=(73, 109, 137))
                     st.image(img, caption=f"Image d'exemple - {st.session_state.image_category}", 
-                           width=300, use_column_width=False)
+                           width=300)
                     st.markdown(f"""
                     <div style="background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
                         <strong>Description de l'image</strong>: Ceci est une image d'exemple simulée pour la catégorie
@@ -769,7 +769,7 @@ def main():
                     """, unsafe_allow_html=True)
                 else:
                     img = Image.open(uploaded_file)
-                    st.image(img, caption="Image téléchargée", width=300, use_column_width=False)
+                    st.image(img, caption="Image téléchargée", width=300)
                 
                 # Prédictions en temps réel
                 with st.spinner("Analyse en cours..."):
