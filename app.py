@@ -248,7 +248,7 @@ def main():
     # AJOUT TEMPORAIRE - FORCE CLEAR CACHE
     if st.button("🔨 FORCE CLEAR CACHE"):
         st.cache_resource.clear()
-        st.experimental_rerun()
+        st.rerun()
 
     # forcer le vidage du cash :
     st.cache_resource.clear()  # Force vider le cache des ressources
