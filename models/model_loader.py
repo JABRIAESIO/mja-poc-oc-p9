@@ -296,12 +296,20 @@ def load_efficientnet_transformer_model(progress_placeholder=None):
         set_loading_placeholder(progress_placeholder)
 
     update_loading_status("Chargement du modèle ConvNeXtTiny...", "info")
+    
+    # AJOUT DEBUG 1: Debug du début de chargement
+    update_loading_status("Début de load_model_from_huggingface...", "info")
     model = load_model_from_huggingface()
+    update_loading_status(f"Modèle retourné de HF: {model}", "info")
 
     if model is None:
         update_loading_status("Impossible de charger le modèle. Vérifiez la connexion et les chemins.", "error")
     else:
         update_loading_status("Modèle chargé avec succès!", "success")
+        # AJOUT DEBUG 2: Informations supplémentaires sur le modèle
+        update_loading_status(f"Type du modèle: {type(model)}", "info")
+        if hasattr(model, 'layers'):
+            update_loading_status(f"Nombre de couches: {len(model.layers)}", "info")
 
     return model
 
