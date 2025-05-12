@@ -101,7 +101,7 @@ def update_loading_status(message, status="info"):
     else:
         print(message)  # Fallback à un print normal si placeholder non défini
 
-@st.cache_resource(show_spinner=False)
+#@st.cache_resource(show_spinner=False)
 def load_model_from_huggingface():
     """
     Charge le modèle depuis Hugging Face avec affichage de l'état de progression
