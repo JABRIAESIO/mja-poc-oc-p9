@@ -110,20 +110,38 @@ def load_model_from_huggingface():
     Returns:
         Modèle Keras chargé
     """
+    # AJOUT DEBUG - DÉBUT
+    update_loading_status("🔍 DEBUG: Entrée dans load_model_from_huggingface", "error")
+    # FIN AJOUT
+    
     try:
         # Obtenir les chemins
         paths = get_model_paths()
         model_path = paths["convnext_model"]
+        
+        # AJOUT DEBUG - DÉBUT
+        update_loading_status(f"🔍 DEBUG: model_path = {model_path}", "error")
+        # FIN AJOUT
 
         # Si le modèle existe déjà localement, le charger
         if os.path.exists(model_path):
+            # AJOUT DEBUG - DÉBUT
+            update_loading_status("🔍 DEBUG: Modèle local trouvé", "error")
+            # FIN AJOUT
+            
             update_loading_status(f"Chargement du modèle local depuis {model_path}...")
             try:
                 # Pour un SavedModel, utiliser keras.models.load_model directement
                 model = keras.models.load_model(model_path)
+                # AJOUT DEBUG - DÉBUT
+                update_loading_status("🔍 DEBUG: Modèle local chargé avec succès", "error")
+                # FIN AJOUT
                 update_loading_status("Modèle local chargé avec succès!", "success")
                 return model
             except ValueError as e:
+                # AJOUT DEBUG - DÉBUT
+                update_loading_status(f"🔍 DEBUG: Erreur chargement local = {e}", "error")
+                # FIN AJOUT
                 update_loading_status(f"Erreur standard de chargement: {e}", "warning")
                 update_loading_status("Tentative de chargement avec TFSMLayer...")
                 try:
@@ -135,27 +153,49 @@ def load_model_from_huggingface():
                     model = Sequential([
                         TFSMLayer(model_path, call_endpoint='serving_default')
                     ])
+                    # AJOUT DEBUG - DÉBUT
+                    update_loading_status("🔍 DEBUG: Modèle chargé avec TFSMLayer", "error")
+                    # FIN AJOUT
                     update_loading_status("Modèle chargé avec TFSMLayer!", "success")
                     return model
                 except Exception as inner_e:
+                    # AJOUT DEBUG - DÉBUT
+                    update_loading_status(f"🔍 DEBUG: Erreur TFSMLayer = {inner_e}", "error")
+                    # FIN AJOUT
                     update_loading_status(f"Erreur avec TFSMLayer: {inner_e}", "error")
 
                     # Dernière tentative avec un chargement différent
                     try:
+                        # AJOUT DEBUG - DÉBUT
+                        update_loading_status("🔍 DEBUG: Tentative tf.saved_model.load", "error")
+                        # FIN AJOUT
                         update_loading_status("Tentative de chargement direct avec tf.saved_model.load...", "info")
                         model = tf.saved_model.load(model_path)
+                        # AJOUT DEBUG - DÉBUT
+                        update_loading_status("🔍 DEBUG: tf.saved_model.load réussi", "error")
+                        # FIN AJOUT
                         update_loading_status("Modèle chargé avec tf.saved_model.load!", "success")
                         return model
                     except Exception as sm_e:
+                        # AJOUT DEBUG - DÉBUT
+                        update_loading_status(f"🔍 DEBUG: Erreur tf.saved_model.load = {sm_e}", "error")
+                        # FIN AJOUT
                         update_loading_status(f"Erreur avec tf.saved_model.load: {sm_e}", "error")
                         return None
 
         # Sinon, télécharger le modèle depuis Hugging Face
+        # AJOUT DEBUG - DÉBUT
+        update_loading_status("🔍 DEBUG: Pas de modèle local, téléchargement depuis HF", "error")
+        # FIN AJOUT
         update_loading_status(f"Téléchargement du modèle depuis Hugging Face...", "info")
 
         # Créer un fichier temporaire pour le téléchargement
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             temp_path = temp_file.name
+        
+        # AJOUT DEBUG - DÉBUT
+        update_loading_status(f"🔍 DEBUG: temp_path = {temp_path}", "error")
+        # FIN AJOUT
 
         # Obtenir le token d'authentification
         hf_token = get_hugging_face_token()
@@ -164,11 +204,20 @@ def load_model_from_huggingface():
         headers = {}
         if hf_token:
             headers["Authorization"] = f"Bearer {hf_token}"
+            # AJOUT DEBUG - DÉBUT
+            update_loading_status("🔍 DEBUG: Token trouvé et utilisé", "error")
+            # FIN AJOUT
             update_loading_status("Token d'authentification Hugging Face trouvé et utilisé", "info")
         else:
+            # AJOUT DEBUG - DÉBUT
+            update_loading_status("🔍 DEBUG: Aucun token trouvé", "error")
+            # FIN AJOUT
             update_loading_status("Aucun token d'authentification Hugging Face trouvé", "warning")
 
         # Télécharger le modèle avec authentification si nécessaire
+        # AJOUT DEBUG - DÉBUT
+        update_loading_status("🔍 DEBUG: Début de la requête HTTP", "error")
+        # FIN AJOUT
         response = requests.get(
             HF_MODEL_URL,
             headers=headers,
@@ -178,12 +227,18 @@ def load_model_from_huggingface():
         )
 
         # Afficher des informations de débogage
+        # AJOUT DEBUG - DÉBUT
+        update_loading_status(f"🔍 DEBUG: Response code = {response.status_code}", "error")
+        # FIN AJOUT
         update_loading_status(f"Code HTTP: {response.status_code}", "info")
         update_loading_status(f"URL finale après redirection: {response.url}", "info")
 
         response.raise_for_status()  # Lève une exception en cas d'erreur HTTP
 
         # Enregistrer le modèle dans le fichier temporaire avec indication de progression
+        # AJOUT DEBUG - DÉBUT
+        update_loading_status("🔍 DEBUG: Début du téléchargement du fichier", "error")
+        # FIN AJOUT
         update_loading_status("Téléchargement du fichier modèle (114 MB)...", "info")
         content_length = int(response.headers.get('Content-Length', 0)) or None
         if content_length:
@@ -197,76 +252,157 @@ def load_model_from_huggingface():
                 if content_length and downloaded % (5*1024*1024) == 0:  # Mise à jour tous les 5 MB
                     update_loading_status(f"Téléchargement en cours... {downloaded/1024/1024:.1f} MB / {content_length/1024/1024:.1f} MB", "info")
 
+        # AJOUT DEBUG - DÉBUT
+        update_loading_status(f"🔍 DEBUG: Téléchargement terminé, taille = {downloaded} bytes", "error")
+        # FIN AJOUT
         update_loading_status("Téléchargement terminé. Chargement du modèle...", "info")
 
         # Vérifier si le fichier téléchargé est un SavedModel ou autre format
         try:
+            # AJOUT DEBUG - DÉBUT
+            update_loading_status("🔍 DEBUG: Vérification du format", "error")
+            # FIN AJOUT
             # Essayer d'abord avec tf.saved_model.load pour détecter si c'est un SavedModel
             update_loading_status("Vérification du format du modèle...", "info")
             saved_model = tf.saved_model.contains_saved_model(temp_path)
+            # AJOUT DEBUG - DÉBUT
+            update_loading_status(f"🔍 DEBUG: Is SavedModel = {saved_model}", "error")
+            # FIN AJOUT
             if saved_model:
                 update_loading_status("Modèle détecté comme format SavedModel", "info")
                 try:
+                    # AJOUT DEBUG - DÉBUT
+                    update_loading_status("🔍 DEBUG: Tentative tf.saved_model.load", "error")
+                    # FIN AJOUT
                     model = tf.saved_model.load(temp_path)
+                    # AJOUT DEBUG - DÉBUT
+                    update_loading_status("🔍 DEBUG: tf.saved_model.load réussi", "error")
+                    # FIN AJOUT
                     update_loading_status("Modèle chargé avec tf.saved_model.load!", "success")
                 except Exception as sm_e:
+                    # AJOUT DEBUG - DÉBUT
+                    update_loading_status(f"🔍 DEBUG: Erreur tf.saved_model.load = {sm_e}", "error")
+                    # FIN AJOUT
                     update_loading_status(f"Erreur avec tf.saved_model.load: {sm_e}", "error")
                     # Essayer avec une approche plus standard pour les SavedModel
                     try:
+                        # AJOUT DEBUG - DÉBUT
+                        update_loading_status("🔍 DEBUG: Tentative keras.models.load_model", "error")
+                        # FIN AJOUT
                         model = keras.models.load_model(temp_path)
+                        # AJOUT DEBUG - DÉBUT
+                        update_loading_status("🔍 DEBUG: keras.models.load_model réussi", "error")
+                        # FIN AJOUT
                         update_loading_status("Modèle chargé avec keras.models.load_model!", "success")
                     except Exception as keras_e:
+                        # AJOUT DEBUG - DÉBUT
+                        update_loading_status(f"🔍 DEBUG: Erreur keras.models.load_model = {keras_e}", "error")
+                        # FIN AJOUT
                         update_loading_status(f"Erreur avec keras.models.load_model: {keras_e}", "error")
                         return None
             else:
                 # Si ce n'est pas un SavedModel, essayer avec les méthodes standard Keras
+                # AJOUT DEBUG - DÉBUT
+                update_loading_status("🔍 DEBUG: Tentative load_model standard", "error")
+                # FIN AJOUT
                 update_loading_status("Modèle n'est pas un SavedModel, tentative avec load_model standard...", "info")
                 try:
                     model = keras.models.load_model(temp_path)
+                    # AJOUT DEBUG - DÉBUT
+                    update_loading_status("🔍 DEBUG: load_model standard réussi", "error")
+                    # FIN AJOUT
                     update_loading_status("Modèle chargé avec keras.models.load_model standard!", "success")
                 except Exception as keras_e:
+                    # AJOUT DEBUG - DÉBUT
+                    update_loading_status(f"🔍 DEBUG: Erreur load_model standard = {keras_e}", "error")
+                    # FIN AJOUT
                     update_loading_status(f"Erreur avec load_model standard: {keras_e}", "error")
                     return None
         except Exception as format_e:
+            # AJOUT DEBUG - DÉBUT
+            update_loading_status(f"🔍 DEBUG: Erreur vérification format = {format_e}", "error")
+            # FIN AJOUT
             update_loading_status(f"Erreur lors de la vérification du format: {format_e}", "error")
             # Dernière tentative avec la méthode standard
             try:
+                # AJOUT DEBUG - DÉBUT
+                update_loading_status("🔍 DEBUG: Dernière tentative load_model", "error")
+                # FIN AJOUT
                 model = keras.models.load_model(temp_path)
+                # AJOUT DEBUG - DÉBUT
+                update_loading_status("🔍 DEBUG: Dernière tentative réussie", "error")
+                # FIN AJOUT
                 update_loading_status("Modèle chargé avec keras.models.load_model (dernière tentative)!", "success")
             except Exception as last_e:
+                # AJOUT DEBUG - DÉBUT
+                update_loading_status(f"🔍 DEBUG: Dernière tentative échouée = {last_e}", "error")
+                # FIN AJOUT
                 update_loading_status(f"Échec de toutes les tentatives de chargement: {last_e}", "error")
                 return None
 
         # Sauvegarder le modèle localement pour une utilisation future
         try:
+            # AJOUT DEBUG - DÉBUT
+            update_loading_status("🔍 DEBUG: Début sauvegarde locale", "error")
+            # FIN AJOUT
             update_loading_status(f"Sauvegarde du modèle vers {model_path}...", "info")
             # Utiliser keras.models.save pour un format compatible
             if hasattr(model, 'save'):
                 model.save(model_path)
+                # AJOUT DEBUG - DÉBUT
+                update_loading_status("🔍 DEBUG: Sauvegarde avec model.save() réussie", "error")
+                # FIN AJOUT
             else:
                 tf.saved_model.save(model, model_path)
+                # AJOUT DEBUG - DÉBUT
+                update_loading_status("🔍 DEBUG: Sauvegarde avec tf.saved_model.save() réussie", "error")
+                # FIN AJOUT
             update_loading_status("Modèle sauvegardé localement avec succès!", "success")
         except Exception as save_e:
+            # AJOUT DEBUG - DÉBUT
+            update_loading_status(f"🔍 DEBUG: Erreur sauvegarde = {save_e}", "error")
+            # FIN AJOUT
             update_loading_status(f"Erreur lors de la sauvegarde du modèle: {save_e}", "warning")
             # Copier le fichier temporaire comme alternative
             import shutil
             try:
+                # AJOUT DEBUG - DÉBUT
+                update_loading_status("🔍 DEBUG: Tentative copie fichier", "error")
+                # FIN AJOUT
                 update_loading_status("Tentative de copie du fichier temporaire...", "info")
                 shutil.copy2(temp_path, model_path)
+                # AJOUT DEBUG - DÉBUT
+                update_loading_status("🔍 DEBUG: Copie fichier réussie", "error")
+                # FIN AJOUT
                 update_loading_status("Fichier temporaire copié avec succès!", "success")
             except Exception as copy_e:
+                # AJOUT DEBUG - DÉBUT
+                update_loading_status(f"🔍 DEBUG: Erreur copie = {copy_e}", "error")
+                # FIN AJOUT
                 update_loading_status(f"Erreur lors de la copie du fichier: {copy_e}", "error")
 
         # Supprimer le fichier temporaire
         try:
             os.unlink(temp_path)
-        except:
+            # AJOUT DEBUG - DÉBUT
+            update_loading_status("🔍 DEBUG: Fichier temporaire supprimé", "error")
+            # FIN AJOUT
+        except Exception as e:
+            # AJOUT DEBUG - DÉBUT
+            update_loading_status(f"🔍 DEBUG: Erreur suppression temp = {e}", "error")
+            # FIN AJOUT
             pass
 
+        # AJOUT DEBUG - DÉBUT
+        update_loading_status(f"🔍 DEBUG: Retour du modèle = {model}, type = {type(model)}", "error")
+        # FIN AJOUT
         return model
 
     except Exception as e:
         import traceback
+        # AJOUT DEBUG - DÉBUT
+        update_loading_status(f"🔍 DEBUG: Exception générale = {e}", "error")
+        # FIN AJOUT
         update_loading_status(f"Erreur lors du chargement du modèle: {e}", "error")
         update_loading_status(traceback.format_exc(), "error")
 
@@ -278,6 +414,9 @@ def load_model_from_huggingface():
         except:
             pass
 
+        # AJOUT DEBUG - DÉBUT
+        update_loading_status("🔍 DEBUG: Retour None à cause de l'exception", "error")
+        # FIN AJOUT
         return None
 
 def load_efficientnet_transformer_model(progress_placeholder=None):
@@ -291,11 +430,19 @@ def load_efficientnet_transformer_model(progress_placeholder=None):
     Returns:
         Modèle Keras chargé
     """
+    # AJOUT DEBUG - DÉBUT
+    update_loading_status("🔍 DEBUG: Entrée dans load_efficientnet_transformer_model", "error")
+    # FIN AJOUT
+    
     # Définir le placeholder de chargement si fourni
     if progress_placeholder is not None:
         set_loading_placeholder(progress_placeholder)
 
     update_loading_status("Chargement du modèle ConvNeXtTiny...", "info")
+    
+    # AJOUT DEBUG - DÉBUT
+    update_loading_status("🔍 DEBUG: Appel load_model_from_huggingface", "error")
+    # FIN AJOUT
     
     # AJOUT DEBUG 1: Debug du début de chargement
     update_loading_status("Début de load_model_from_huggingface...", "info")
@@ -304,12 +451,18 @@ def load_efficientnet_transformer_model(progress_placeholder=None):
 
     if model is None:
         update_loading_status("Impossible de charger le modèle. Vérifiez la connexion et les chemins.", "error")
+        # AJOUT DEBUG - DÉBUT
+        update_loading_status("🔍 DEBUG: model is None - Sortie avec None", "error")
+        # FIN AJOUT
     else:
         update_loading_status("Modèle chargé avec succès!", "success")
         # AJOUT DEBUG 2: Informations supplémentaires sur le modèle
         update_loading_status(f"Type du modèle: {type(model)}", "info")
         if hasattr(model, 'layers'):
             update_loading_status(f"Nombre de couches: {len(model.layers)}", "info")
+        # AJOUT DEBUG - DÉBUT
+        update_loading_status("🔍 DEBUG: Modèle chargé - Retour du modèle", "error")
+        # FIN AJOUT
 
     return model
 
