@@ -14,25 +14,27 @@ import sys
 import platform
 import psutil
 
-# AJOUT TEMPORAIRE - DÉBUT
-st.write("DEBUG: App démarrée")
-st.write("DEBUG: Imports réussis")
-# FIN AJOUT
-
 # Utilise TensorFlow comme backend pour Keras 3
 os.environ['KERAS_BACKEND'] = 'tensorflow'
 
-from models.model_loader import load_efficientnet_transformer_model, load_categories, get_model_paths, get_hugging_face_token, HF_MODEL_URL
-from models.inference import predict_image, plot_prediction_bars
-from utils.preprocessing import preprocess_image_for_convnext, resize_and_pad_image, apply_data_augmentation
-
 # Configuration de la page avec préoccupation d'accessibilité
+# CETTE SECTION DOIT ÊTRE PROPRE - PAS DE st.write() AVANT !
 st.set_page_config(
     page_title="Classifieur d'Images - Flipkart",
     page_icon="🛒",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Maintenant on peut ajouter les imports et autres commandes
+from models.model_loader import load_efficientnet_transformer_model, load_categories, get_model_paths, get_hugging_face_token, HF_MODEL_URL
+from models.inference import predict_image, plot_prediction_bars
+from utils.preprocessing import preprocess_image_for_convnext, resize_and_pad_image, apply_data_augmentation
+
+# AJOUT TEMPORAIRE - APRÈS st.set_page_config()
+st.write("DEBUG: App démarrée")
+st.write("DEBUG: Imports réussis")
+# FIN AJOUT
 
 # Ajout de CSS pour améliorer l'accessibilité
 st.markdown("""
@@ -166,7 +168,7 @@ def load_model():
     """
     # AJOUT TEMPORAIRE POUR VOIR SI ÇA MARCHE
     st.error("🔥 LOAD_MODEL APPELÉE SANS CACHE")
-    
+
     # Créer un placeholder pour les messages de chargement
     loading_placeholder = st.empty()
 
@@ -178,10 +180,10 @@ def load_model():
             # Test de connexion à Hugging Face
             loading_placeholder.info("Test de connexion à Hugging Face...")
             test_result = test_hugging_face_connection()
-            
+
             # AJOUTEZ CES LIGNES
             loading_placeholder.error(f"DEBUG: test_result = {test_result}")
-            
+
             if not test_result:
                 loading_placeholder.warning("La connexion à Hugging Face a échoué, mais nous allons essayer de charger le modèle quand même.")
 
@@ -245,7 +247,7 @@ def main():
     if st.button("🔨 FORCE CLEAR CACHE"):
         st.cache_resource.clear()
         st.experimental_rerun()
-    
+
     # forcer le vidage du cash :
     st.cache_resource.clear()  # Force vider le cache des ressources
 
@@ -289,13 +291,13 @@ def main():
 
     # AJOUT DEBUG
     st.write("🔍 DEBUG: Avant appel load_model()")
-    
+
     # Chargement du modèle
     model, categories = load_model()
-    
+
     # AJOUT DEBUG
     st.write(f"🔍 DEBUG: Après load_model() - model={model}, categories={categories}")
-    
+
     # débug du chargement du model
     if model is not None and categories is not None:
         st.sidebar.success("✅ Modèle et catégories chargés")
