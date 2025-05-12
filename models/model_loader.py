@@ -101,7 +101,7 @@ def update_loading_status(message, status="info"):
     else:
         print(message)  # Fallback à un print normal si placeholder non défini
 
-# LIGNE 104 - COMMENTÉE COMME DEMANDÉ
+# MODIFICATION : Ligne 104 commentée comme demandé
 # @st.cache_resource(show_spinner=False)
 def load_model_from_huggingface():
     """
@@ -112,24 +112,24 @@ def load_model_from_huggingface():
         Modèle Keras chargé
     """
     # AJOUT DEBUG - DÉBUT
-    update_loading_status("🔍 DEBUG: Entrée dans load_model_from_huggingface", "error")
+    st.write("🔍 DEBUG: Entrée dans load_model_from_huggingface")
     # FIN AJOUT
-    
+
     try:
         # Obtenir les chemins
         paths = get_model_paths()
         model_path = paths["convnext_model"]
-        
+
         # AJOUT DEBUG - DÉBUT
-        update_loading_status(f"🔍 DEBUG: model_path = {model_path}", "error")
+        st.write(f"🔍 DEBUG: model_path = {model_path}")
         # FIN AJOUT
 
         # Si le modèle existe déjà localement, le charger
         if os.path.exists(model_path):
             # AJOUT DEBUG - DÉBUT
-            update_loading_status("🔍 DEBUG: Modèle local trouvé", "error")
+            st.write("🔍 DEBUG: Modèle local trouvé")
             # FIN AJOUT
-            
+
             update_loading_status(f"Chargement du modèle local depuis {model_path}...")
             try:
                 # Pour un SavedModel, utiliser keras.models.load_model directement
@@ -186,14 +186,14 @@ def load_model_from_huggingface():
 
         # Sinon, télécharger le modèle depuis Hugging Face
         # AJOUT DEBUG - DÉBUT
-        update_loading_status("🔍 DEBUG: Pas de modèle local, téléchargement depuis HF", "error")
+        st.write("🔍 DEBUG: Pas de modèle local, téléchargement depuis HF")
         # FIN AJOUT
         update_loading_status(f"Téléchargement du modèle depuis Hugging Face...", "info")
 
         # Créer un fichier temporaire pour le téléchargement
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             temp_path = temp_file.name
-        
+
         # AJOUT DEBUG - DÉBUT
         update_loading_status(f"🔍 DEBUG: temp_path = {temp_path}", "error")
         # FIN AJOUT
@@ -254,7 +254,7 @@ def load_model_from_huggingface():
                     update_loading_status(f"Téléchargement en cours... {downloaded/1024/1024:.1f} MB / {content_length/1024/1024:.1f} MB", "info")
 
         # AJOUT DEBUG - DÉBUT
-        update_loading_status(f"🔍 DEBUG: Téléchargement terminé, taille = {downloaded} bytes", "error")
+        st.write(f"🔍 DEBUG: Téléchargement terminé, taille = {downloaded} bytes")
         # FIN AJOUT
         update_loading_status("Téléchargement terminé. Chargement du modèle...", "info")
 
@@ -395,7 +395,7 @@ def load_model_from_huggingface():
             pass
 
         # AJOUT DEBUG - DÉBUT
-        update_loading_status(f"🔍 DEBUG: Retour du modèle = {model}, type = {type(model)}", "error")
+        st.write(f"🔍 DEBUG: Retour du modèle = {model}, type = {type(model)}")
         # FIN AJOUT
         return model
 
@@ -432,22 +432,24 @@ def load_efficientnet_transformer_model(progress_placeholder=None):
         Modèle Keras chargé
     """
     # AJOUT DEBUG - DÉBUT
-    update_loading_status("🔍 DEBUG: Entrée dans load_efficientnet_transformer_model", "error")
+    st.write("🔍 DEBUG: Entrée dans load_efficientnet_transformer_model")
     # FIN AJOUT
-    
+
     # Définir le placeholder de chargement si fourni
     if progress_placeholder is not None:
         set_loading_placeholder(progress_placeholder)
 
     update_loading_status("Chargement du modèle ConvNeXtTiny...", "info")
-    
+
     # AJOUT DEBUG - DÉBUT
-    update_loading_status("🔍 DEBUG: Appel load_model_from_huggingface", "error")
+    st.write("🔍 DEBUG: Appel load_model_from_huggingface")
     # FIN AJOUT
-    
+
     # AJOUT DEBUG 1: Debug du début de chargement
     update_loading_status("Début de load_model_from_huggingface...", "info")
     model = load_model_from_huggingface()
+    # MODIFICATION : ajout de st.write() pour plus de visibilité
+    st.write(f"🔍 DEBUG: Modèle retourné = {model}, type = {type(model)}")
     update_loading_status(f"Modèle retourné de HF: {model}", "info")
 
     if model is None:
