@@ -1,5 +1,5 @@
+streamlit==1.28.0
 numpy==1.24.3
-streamlit==1.29.0
 tensorflow==2.15.1
 keras==2.15.0
 protobuf==3.20.3
