@@ -261,6 +261,17 @@ def main():
 
     # Chargement du modèle
     model, categories = load_model()
+    # débug du chargement du model
+	if model is not None and categories is not None:
+        st.sidebar.success("✅ Modèle et catégories chargés")
+        st.sidebar.info(f"Type modèle: {type(model)}")
+        st.sidebar.info(f"Nombre catégories: {len(categories)}")
+    else:
+        st.sidebar.error("❌ Problème de chargement détecté")
+        if model is None:
+            st.sidebar.error("Modèle = None")
+        if categories is None:
+            st.sidebar.error("Categories = None")
 
     # Interface pour sélectionner entre upload et exemples
     st.header("Sélection de l'image")
@@ -286,7 +297,7 @@ def main():
                 st.image(
                     image,
                     caption=f"Image téléchargée: {uploaded_file.name}",
-                    use_column_width=True,
+                    width=400,
                     output_format="PNG"  # Format stable pour l'affichage
                 )
 
@@ -370,7 +381,7 @@ def main():
                     st.image(
                         image,
                         caption=f"Exemple: {os.path.basename(selected_example)}",
-                        use_column_width=True,
+                        width=400,
                         output_format="PNG"
                     )
 
