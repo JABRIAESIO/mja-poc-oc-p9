@@ -172,24 +172,22 @@ def load_model():
     # Créer un placeholder pour les messages de chargement
     loading_placeholder = st.empty()
 
-    # AJOUTEZ CETTE LIGNE AU DÉBUT
-    loading_placeholder.error("DEBUG: load_model() appelée")
-
-    with st.spinner('Chargement du modèle en cours. Cela peut prendre quelques instants...'):
-        try:
+    # MODIFICATION - Force l'affichage des erreurs
+    try:
+        st.error("🔍 DEBUG: Début de load_model()")
+        
+        with st.spinner('Chargement du modèle en cours. Cela peut prendre quelques instants...'):
             # Test de connexion à Hugging Face
             loading_placeholder.info("Test de connexion à Hugging Face...")
             test_result = test_hugging_face_connection()
-
-            # AJOUTEZ CES LIGNES
-            loading_placeholder.error(f"DEBUG: test_result = {test_result}")
-
+            st.error(f"🔍 DEBUG: test_result = {test_result}")
+            
             if not test_result:
                 loading_placeholder.warning("La connexion à Hugging Face a échoué, mais nous allons essayer de charger le modèle quand même.")
 
             # Obtention des chemins
             paths = get_model_paths()
-            loading_placeholder.error(f"DEBUG: paths = {paths}")
+            st.error(f"🔍 DEBUG: paths = {paths}")
             loading_placeholder.info(f"Recherche du modèle dans: {paths['convnext_model']}")
 
             # Mesure du temps de chargement du modèle
@@ -197,16 +195,19 @@ def load_model():
 
             # Utilisation de la fonction load_efficientnet_transformer_model qui redirige vers ConvNeXtTiny
             loading_placeholder.info("Chargement du modèle ConvNeXtTiny...")
-            # AJOUTEZ CES LIGNES
-            loading_placeholder.error("DEBUG: Appel load_efficientnet_transformer_model")
+            # IMPORTANT - Capturer l'erreur ici
+            st.error("🔍 DEBUG: Avant load_efficientnet_transformer_model")
             model = load_efficientnet_transformer_model(loading_placeholder)
-            loading_placeholder.error(f"DEBUG: Modèle retourné = {model}")
+            st.error(f"🔍 DEBUG: Après load_model, model = {model}")
 
             end_time = time.time()
             loading_time = end_time - start_time
 
             if model is None:
+                st.error("🔍 DEBUG: MODEL IS NONE!")
                 loading_placeholder.error("Le modèle n'a pas pu être chargé correctement")
+                # Ajout d'info détaillée
+                st.error("Détails sur l'échec du chargement")
 
                 # Vérifier si le token est présent
                 hf_token = get_hugging_face_token()
@@ -220,7 +221,9 @@ def load_model():
             loading_placeholder.success(f"✅ Modèle chargé avec succès en {loading_time:.2f} secondes!")
 
             # Chargement des catégories
+            st.error("🔍 DEBUG: Avant load_categories")
             categories = load_categories()
+            st.error(f"🔍 DEBUG: Après load_categories = {categories}")
             loading_placeholder.success("Catégories chargées avec succès!")
 
             # Effacer le placeholder une fois le chargement terminé
@@ -228,19 +231,18 @@ def load_model():
 
             return model, categories
 
-        except Exception as e:
-            loading_placeholder.error(f"Erreur lors du chargement du modèle")
-            with st.expander("Détails techniques de l'erreur"):
-                st.error(f"Description détaillée: {str(e)}")
-                st.code(traceback.format_exc())
+    except Exception as e:
+        st.error(f"🚨 EXCEPTION DANS LOAD_MODEL: {e}")
+        import traceback
+        st.error(traceback.format_exc())
+        
+        # Vérifier si le token est présent
+        hf_token = get_hugging_face_token()
+        if not hf_token:
+            st.error("Aucun token Hugging Face trouvé. Veuillez l'ajouter dans les secrets Streamlit.")
+            st.info("Pour ajouter un token Hugging Face, allez dans les paramètres de votre application Streamlit Cloud, puis dans l'onglet 'Secrets' et ajoutez: HF_TOKEN = 'votre_token'")
 
-            # Vérifier si le token est présent
-            hf_token = get_hugging_face_token()
-            if not hf_token:
-                loading_placeholder.error("Aucun token Hugging Face trouvé. Veuillez l'ajouter dans les secrets Streamlit.")
-                loading_placeholder.info("Pour ajouter un token Hugging Face, allez dans les paramètres de votre application Streamlit Cloud, puis dans l'onglet 'Secrets' et ajoutez: HF_TOKEN = 'votre_token'")
-
-            return None, None
+        return None, None
 
 def main():
     # AJOUT TEMPORAIRE - FORCE CLEAR CACHE
