@@ -21,9 +21,9 @@ from utils.preprocessing import preprocess_image_for_convnext, resize_and_pad_im
 # keras.config.enable_unsafe_deserialization() car cette fonction n'est pas compatible avec v3 de keras.
 
 # URL du modèle sur Hugging Face
-HF_MODEL_URL = "https://huggingface.co/mourad42008/convnext-tiny-flipkart-classification/resolve/main/model_final.h5"  # MODIFICATION 1: .keras → .h5
+HF_MODEL_URL = "https://huggingface.co/mourad42008/convnext-tiny-flipkart-classification/resolve/main/model_final.keras"  # MODIFICATION 1: .keras → .h5
 # Nom du fichier pour la sauvegarde locale - CORRIGÉ pour correspondre au fichier sur HF
-MODEL_FILENAME = "model_final.h5"  # MODIFICATION 2: .savedmodel → .h5
+MODEL_FILENAME = "model_final.keras"  # MODIFICATION 2: .savedmodel → .h5
 
 def get_hugging_face_token():
     """
