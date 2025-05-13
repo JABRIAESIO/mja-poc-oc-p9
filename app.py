@@ -3,7 +3,6 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
-import io
 import time
 import glob
 import random
@@ -14,11 +13,10 @@ import sys
 import platform
 import psutil
 
-# Utilise TensorFlow comme backend pour Keras 3
+# Configuration essentielle AVANT tout autre code
 os.environ['KERAS_BACKEND'] = 'tensorflow'
 
-# Configuration de la page avec préoccupation d'accessibilité
-# CETTE SECTION DOIT ÊTRE PROPRE - PAS DE st.write() AVANT !
+# Configuration de la page
 st.set_page_config(
     page_title="Classifieur d'Images - Flipkart",
     page_icon="🛒",
@@ -26,17 +24,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Maintenant on peut ajouter les imports et autres commandes
+# Imports après configuration
 from models.model_loader import load_efficientnet_transformer_model, load_categories, get_model_paths, get_hugging_face_token, HF_MODEL_URL
 from models.inference import predict_image, plot_prediction_bars
 from utils.preprocessing import preprocess_image_for_convnext, resize_and_pad_image, apply_data_augmentation
 
-# AJOUT TEMPORAIRE - APRÈS st.set_page_config()
-st.write("DEBUG: App démarrée")
-st.write("DEBUG: Imports réussis")
-# FIN AJOUT
-
-# Ajout de CSS pour améliorer l'accessibilité
+# CSS pour améliorer l'accessibilité
 st.markdown("""
 <style>
     /* Augmenter le contraste des textes */
@@ -63,30 +56,106 @@ st.markdown("""
     /* Focus visible pour les éléments interactifs */
     button:focus, input:focus, select:focus {
         outline: 3px solid #4299e1 !important;
+        outline-offset: 2px !important;
     }
 
     /* Améliorer la visibilité des boutons */
     .stButton button {
         font-weight: 500 !important;
         padding: 0.5rem 1rem !important;
+        border-radius: 6px !important;
+        transition: background-color 0.3s ease !important;
+    }
+
+    /* Amélioration des boutons au hover */
+    .stButton button:hover {
+        background-color: #0056b3 !important;
+        color: white !important;
     }
 
     /* Meilleur espacement pour les éléments de formulaire */
     .stRadio, .stSelectbox, .stFileUploader {
         margin-bottom: 1.5rem !important;
     }
+
+    /* Messages d'erreur avec meilleur contraste */
+    .stError, .element-container .stError {
+        background-color: #ffd6d6 !important;
+        border-left: 5px solid #ff4b4b !important;
+        padding: 10px !important;
+        margin-bottom: 1rem !important;
+    }
+
+    /* Messages de succès avec meilleur contraste */
+    .stSuccess, .element-container .stSuccess {
+        background-color: #d4edda !important;
+        border-left: 5px solid #00cc88 !important;
+        padding: 10px !important;
+        margin-bottom: 1rem !important;
+    }
+
+    /* Messages d'info avec meilleur contraste */
+    .stInfo, .element-container .stInfo {
+        background-color: #e7f3ff !important;
+        border-left: 5px solid #0068c9 !important;
+        padding: 10px !important;
+        margin-bottom: 1rem !important;
+    }
+
+    /* Amélioration de l'accessibilité des tableaux */
+    .stTable table {
+        border-collapse: collapse !important;
+        width: 100% !important;
+    }
+
+    .stTable th, .stTable td {
+        border: 1px solid #ddd !important;
+        padding: 12px !important;
+        text-align: left !important;
+    }
+
+    .stTable th {
+        background-color: #f5f5f5 !important;
+        font-weight: bold !important;
+    }
+
+    /* Amélioration de l'accessibilité du spinner */
+    .stSpinner {
+        color: #0068c9 !important;
+    }
+
+    /* Indicateur de progression accessible */
+    .stProgress .st-bo {
+        background-color: #00cc88 !important;
+    }
+
+    /* Radio buttons plus grands pour faciliter l'utilisation */
+    .stRadio > div {
+        gap: 0.5rem !important;
+    }
+
+    /* Skip navigation link (caché visuellement mais accessible aux lecteurs d'écran) */
+    .skip-nav {
+        position: absolute !important;
+        top: -40px !important;
+        left: 0 !important;
+        background: #000 !important;
+        color: #fff !important;
+        padding: 8px !important;
+        text-decoration: none !important;
+        z-index: 1000 !important;
+    }
+
+    .skip-nav:focus {
+        top: 0 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 def test_hugging_face_connection():
-    """
-    Teste la connexion à Hugging Face en vérifiant l'accès au modèle.
-    """
+    """Teste la connexion à Hugging Face en vérifiant l'accès au modèle."""
     try:
-        # Obtenir le token
         hf_token = get_hugging_face_token()
-
-        # Préparer les headers
         headers = {}
         if hf_token:
             headers["Authorization"] = f"Bearer {hf_token}"
@@ -94,22 +163,18 @@ def test_hugging_face_connection():
         else:
             st.warning("⚠️ Aucun token d'authentification trouvé")
 
-        # Faire la requête - Utiliser GET au lieu de HEAD et suivre les redirections
-        with st.spinner("Test de connexion en cours. Veuillez patienter..."):
-            # Test direct sur le modèle avec GET et streaming
+        with st.spinner("Test de connexion en cours..."):
             response = requests.get(
                 HF_MODEL_URL,
                 headers=headers,
-                stream=True,  # Important pour ne pas télécharger tout le contenu
+                stream=True,
                 timeout=10,
-                allow_redirects=True  # Important: suivre les redirections
+                allow_redirects=True
             )
 
             # Lire juste un peu de contenu pour confirmer l'accès
             for chunk in response.iter_content(chunk_size=1024):
                 break
-
-            st.write(f"URL finale après redirection: {response.url}")
 
             if response.status_code == 200:
                 size_mb = int(response.headers.get('content-length', 0)) / (1024 * 1024)
@@ -117,36 +182,16 @@ def test_hugging_face_connection():
                 return True
             else:
                 st.error(f"❌ Erreur HTTP {response.status_code}")
-
-                # Afficher des informations de débogage
-                with st.expander("Détails de l'erreur (pour le dépannage)"):
-                    st.write({
-                        "Code d'état": response.status_code,
-                        "URL demandée": HF_MODEL_URL,
-                        "URL finale": response.url,
-                        "En-têtes": dict(response.headers),
-                        "Token présent": "Oui" if bool(hf_token) else "Non"
-                    })
                 return False
     except Exception as e:
         st.error(f"❌ Erreur de connexion: {str(e)}")
-        with st.expander("Détails techniques de l'erreur"):
-            st.exception(e)
         return False
 
 def load_example_images():
-    """
-    Charge les exemples d'images disponibles dans le dossier assets/examples
-
-    Returns:
-        list: Liste des chemins d'accès aux images exemple
-    """
+    """Charge les exemples d'images disponibles dans le dossier assets/examples"""
     examples_dir = os.path.join("assets", "examples")
     if not os.path.exists(examples_dir):
         st.warning(f"⚠️ Le dossier d'exemples '{examples_dir}' n'existe pas.")
-        # Afficher le contenu du répertoire actuel pour le débogage
-        with st.expander("Informations de dépannage"):
-            st.write("Contenu du répertoire actuel:", os.listdir("."))
         return []
 
     image_files = [f for f in os.listdir(examples_dir) if f.endswith(('.jpg', '.jpeg', '.png'))]
@@ -156,108 +201,37 @@ def load_example_images():
 
     return [os.path.join(examples_dir, f) for f in image_files]
 
-# COMMENTER CETTE LIGNE POUR DÉSACTIVER LE CACHE
-# @st.cache_resource(show_spinner=False)
+# ACTIVATION DU CACHE CORRIGÉ
+@st.cache_resource(show_spinner=False)
 def load_model():
-    """
-    Charge le modèle de classification et les catégories.
-    Cette fonction est mise en cache pour éviter de recharger le modèle à chaque interaction.
-
-    Returns:
-        tuple: (modèle, dictionnaire des catégories) ou (None, None) en cas d'erreur
-    """
-    # AJOUT TEMPORAIRE POUR VOIR SI ÇA MARCHE
-    st.error("🔥 LOAD_MODEL APPELÉE SANS CACHE")
-
-    # Créer un placeholder pour les messages de chargement
-    loading_placeholder = st.empty()
-
-    # MODIFICATION - Force l'affichage des erreurs
+    """Charge le modèle de classification et les catégories."""
     try:
-        st.error("🔍 DEBUG: Début de load_model()")
-        
-        with st.spinner('Chargement du modèle en cours. Cela peut prendre quelques instants...'):
-            # Test de connexion à Hugging Face
-            loading_placeholder.info("Test de connexion à Hugging Face...")
-            test_result = test_hugging_face_connection()
-            st.error(f"🔍 DEBUG: test_result = {test_result}")
+        with st.spinner('Chargement du modèle (patientez 1 à 2 minutes)...'):
+            # Test de connexion simplifié
+            test_hugging_face_connection()
             
-            if not test_result:
-                loading_placeholder.warning("La connexion à Hugging Face a échoué, mais nous allons essayer de charger le modèle quand même.")
-
-            # Obtention des chemins
-            paths = get_model_paths()
-            st.error(f"🔍 DEBUG: paths = {paths}")
-            loading_placeholder.info(f"Recherche du modèle dans: {paths['convnext_model']}")
-
-            # Mesure du temps de chargement du modèle
-            start_time = time.time()
-
-            # Utilisation de la fonction load_efficientnet_transformer_model qui redirige vers ConvNeXtTiny
-            loading_placeholder.info("Chargement du modèle ConvNeXtTiny...")
-            # IMPORTANT - Capturer l'erreur ici
-            st.error("🔍 DEBUG: Avant load_efficientnet_transformer_model")
-            model = load_efficientnet_transformer_model(loading_placeholder)
-            st.error(f"🔍 DEBUG: Après load_model, model = {model}")
-
-            end_time = time.time()
-            loading_time = end_time - start_time
+            # Chargement direct avec nouvelle logique
+            model = load_efficientnet_transformer_model()
+            categories = load_categories()
 
             if model is None:
-                st.error("🔍 DEBUG: MODEL IS NONE!")
-                loading_placeholder.error("Le modèle n'a pas pu être chargé correctement")
-                # Ajout d'info détaillée
-                st.error("Détails sur l'échec du chargement")
-
-                # Vérifier si le token est présent
-                hf_token = get_hugging_face_token()
-                if not hf_token:
-                    loading_placeholder.error("Aucun token Hugging Face trouvé. Veuillez l'ajouter dans les secrets Streamlit.")
-                    loading_placeholder.info("Pour ajouter un token Hugging Face, allez dans les paramètres de votre application Streamlit Cloud, puis dans l'onglet 'Secrets' et ajoutez: HF_TOKEN = 'votre_token'")
-
+                st.error("Échec du chargement du modèle")
                 return None, None
-
-            # Information sur le chargement réussi
-            loading_placeholder.success(f"✅ Modèle chargé avec succès en {loading_time:.2f} secondes!")
-
-            # Chargement des catégories
-            st.error("🔍 DEBUG: Avant load_categories")
-            categories = load_categories()
-            st.error(f"🔍 DEBUG: Après load_categories = {categories}")
-            loading_placeholder.success("Catégories chargées avec succès!")
-
-            # Effacer le placeholder une fois le chargement terminé
-            loading_placeholder.empty()
 
             return model, categories
 
     except Exception as e:
-        st.error(f"🚨 EXCEPTION DANS LOAD_MODEL: {e}")
-        import traceback
-        st.error(traceback.format_exc())
-        
-        # Vérifier si le token est présent
-        hf_token = get_hugging_face_token()
-        if not hf_token:
-            st.error("Aucun token Hugging Face trouvé. Veuillez l'ajouter dans les secrets Streamlit.")
-            st.info("Pour ajouter un token Hugging Face, allez dans les paramètres de votre application Streamlit Cloud, puis dans l'onglet 'Secrets' et ajoutez: HF_TOKEN = 'votre_token'")
-
-        return None, None
+        st.error(f"Erreur critique : {str(e)}")
+        st.stop()
 
 def main():
-    # AJOUT TEMPORAIRE - FORCE CLEAR CACHE
-    #if st.button("🔨 FORCE CLEAR CACHE"):
-    #    st.cache_resource.clear()
-    #    st.rerun()
-
-    # forcer le vidage du cash :
-    #st.cache_resource.clear()  # Force vider le cache des ressources
-
-    # Informations système pour le débogage
+    # Ajouter un lien de navigation pour l'accessibilité
+    st.markdown('<a href="#main-content" class="skip-nav">Aller au contenu principal</a>', unsafe_allow_html=True)
+    
+    # Sidebar avec informations système  
     with st.sidebar:
         st.title("Informations système")
-
-        # Afficher les informations avec des étiquettes claires
+        
         system_info = {
             "Version Python": platform.python_version(),
             "Mémoire disponible": f"{psutil.virtual_memory().available / (1024 * 1024):.2f} MB",
@@ -268,17 +242,16 @@ def main():
         for label, value in system_info.items():
             st.markdown(f"**{label}:** {value}")
 
-        # Afficher l'URL et le chemin du modèle pour débogage
         paths = get_model_paths()
         st.markdown("### Informations modèle")
         st.markdown(f"**URL Hugging Face:** {HF_MODEL_URL}")
         st.markdown(f"**Chemin local:** {paths['convnext_model']}")
 
-        # Test de connexion à Hugging Face avec la nouvelle fonction
-        if st.button("Tester la connexion à Hugging Face", help="Vérifie si l'application peut accéder au modèle sur Hugging Face"):
+        if st.button("Tester la connexion à Hugging Face"):
             test_hugging_face_connection()
 
-    # Titre principal avec description claire
+    # Titre principal avec ancre pour l'accessibilité
+    st.markdown('<div id="main-content"></div>', unsafe_allow_html=True)
     st.title("🛒 Classifieur d'Images - Flipkart")
     st.markdown("""
     Cette application permet de classifier des images selon différentes catégories en utilisant un modèle ConvNeXtTiny.
@@ -291,37 +264,22 @@ def main():
     Développé dans le cadre du projet 9 de la formation OpenClassrooms "Machine Learning Engineer".
     """)
 
-    # AJOUT DEBUG
-    st.write("🔍 DEBUG: Avant appel load_model()")
-
     # Chargement du modèle
     model, categories = load_model()
 
-    # AJOUT DEBUG
-    st.write(f"🔍 DEBUG: Après load_model() - model={model}, categories={categories}")
-
-    # débug du chargement du model
-    if model is not None and categories is not None:
-        st.sidebar.success("✅ Modèle et catégories chargés")
-        st.sidebar.info(f"Type modèle: {type(model)}")
-        st.sidebar.info(f"Nombre catégories: {len(categories)}")
-    else:
-        st.sidebar.error("❌ Problème de chargement détecté")
-        if model is None:
-            st.sidebar.error("Modèle = None")
-        if categories is None:
-            st.sidebar.error("Categories = None")
-
     # Interface pour sélectionner entre upload et exemples
     st.header("Sélection de l'image")
-    source_option = st.radio(
-        "Comment souhaitez-vous fournir une image?",
-        ["Télécharger une image", "Utiliser un exemple"],
-        help="Choisissez si vous voulez télécharger votre propre image ou utiliser une image d'exemple"
-    )
+    
+    # Utilisation de st.container pour une meilleure organisation
+    with st.container():
+        st.subheader("Mode de saisie")
+        source_option = st.radio(
+            "Comment souhaitez-vous fournir une image?",
+            ["Télécharger une image", "Utiliser un exemple"],
+            help="Choisissez si vous voulez télécharger votre propre image ou utiliser une image d'exemple"
+        )
 
     if source_option == "Télécharger une image":
-        # Interface utilisateur pour l'upload d'images
         uploaded_file = st.file_uploader(
             "Choisissez une image à classifier (JPG, JPEG ou PNG)",
             type=["jpg", "jpeg", "png"],
@@ -329,44 +287,45 @@ def main():
         )
 
         if uploaded_file is not None:
-            # Traitement de l'image téléchargée
             try:
                 image = Image.open(uploaded_file)
-                # Afficher l'image avec une description accessible
+                # Afficher l'image avec description alternative accessible
                 st.image(
                     image,
                     caption=f"Image téléchargée: {uploaded_file.name}",
                     width=400,
-                    output_format="PNG"  # Format stable pour l'affichage
+                    output_format="PNG"
                 )
+                
+                # Description alternative pour l'accessibilité
+                st.markdown(f"**Description de l'image**: {uploaded_file.name} - Image téléchargée pour classification")
 
-                # Prédiction
                 if model is not None and categories is not None:
-                    with st.spinner("Classification en cours... Veuillez patienter."):
-                        # Utilisation de la fonction predict_image de models.inference qui gère différents types de modèles
+                    with st.spinner("Classification en cours..."):
                         result = predict_image(model, image, categories)
 
                         if "error" in result:
                             st.error(f"Erreur lors de la prédiction: {result['error']}")
-                            with st.expander("Détails de l'erreur"):
-                                st.code(result.get("error_trace", "Pas de détails supplémentaires disponibles"))
                         else:
-                            # Extraction des prédictions
                             predicted_class = result["predicted_class"]
                             confidence = result["confidence"]
                             all_predictions = result["all_predictions"]
 
-                            # Afficher les résultats
                             col1, col2 = st.columns(2)
 
                             with col1:
                                 st.subheader("Résultat de la classification")
-                                st.success(f"Catégorie prédite: **{predicted_class}**")
+                                
+                                # Utiliser des éléments sémantiques pour une meilleure accessibilité
+                                st.markdown("### Prédiction principale")
+                                st.success(f"**Catégorie prédite**: {predicted_class}")
+                                
+                                # Barre de progression avec label associé
+                                st.markdown(f"**Niveau de confiance**: {confidence*100:.2f}%")
                                 st.progress(confidence)
-                                st.info(f"Confiance: {confidence*100:.2f}%")
-
-                                # Afficher un tableau de résultats textuels pour accessibilité
-                                st.markdown("### Probabilités par catégorie")
+                                
+                                # Tableau accessible avec headers explicites
+                                st.markdown("### Toutes les probabilités")
                                 results_table = []
 
                                 for pred in all_predictions:
@@ -375,17 +334,27 @@ def main():
                                         "Probabilité": f"{pred['probability']*100:.2f}%"
                                     })
 
+                                # Tableau avec titre pour l'accessibilité
+                                st.markdown("Tableau des probabilités par catégorie :")
                                 st.table(results_table)
 
                             with col2:
-                                # Visualisation graphique
                                 st.markdown("### Visualisation graphique")
-                                # Créer un dictionnaire pour la fonction plot_prediction_bars
+                                
+                                # Texte alternatif pour le graphique
                                 prediction_dict = {pred["class_name"]: pred["probability"] for pred in all_predictions}
+                                
+                                # Description textuelle du graphique pour l'accessibilité
+                                st.markdown("**Description du graphique**: Graphique à barres horizontales montrant les probabilités de classification pour chaque catégorie.")
+                                
                                 fig = plot_prediction_bars(prediction_dict)
-                                st.pyplot(fig)
+                                
+                                # Alt text personnalisé pour le graphique
+                                st.pyplot(fig, use_container_width=True)
+                                
+                                # Description détaillée sous le graphique
+                                st.markdown(f"**Résumé du graphique**: La catégorie '{predicted_class}' a la probabilité la plus élevée ({confidence*100:.2f}%). Les autres catégories ont des probabilités inférieures.")
 
-                            # Information sur les performances
                             with st.expander("Informations sur les performances"):
                                 st.markdown(f"""
                                 - **Temps de prétraitement**: {result['preprocess_time']*1000:.2f} ms
@@ -398,11 +367,9 @@ def main():
                     st.error(f"Description: {str(e)}")
                     st.code(traceback.format_exc())
     else:
-        # Chargement et affichage des exemples
         examples = load_example_images()
 
         if examples:
-            # Sélection d'un exemple avec descriptions accessibles
             example_options = [os.path.basename(ex) for ex in examples]
             selected_example_name = st.selectbox(
                 "Sélectionnez une image exemple",
@@ -410,13 +377,11 @@ def main():
                 help="Choisissez parmi les images d'exemple disponibles"
             )
 
-            # Retrouver le chemin complet
             selected_example = next((ex for ex in examples if os.path.basename(ex) == selected_example_name), None)
 
             if selected_example:
                 try:
                     image = Image.open(selected_example)
-                    # Afficher l'image avec une description accessible
                     st.image(
                         image,
                         caption=f"Exemple: {os.path.basename(selected_example)}",
@@ -424,23 +389,17 @@ def main():
                         output_format="PNG"
                     )
 
-                    # Prédiction sur l'exemple
                     if model is not None and categories is not None:
-                        with st.spinner("Classification en cours... Veuillez patienter."):
-                            # Utilisation de la fonction predict_image de models.inference
+                        with st.spinner("Classification en cours..."):
                             result = predict_image(model, image, categories)
 
                             if "error" in result:
                                 st.error(f"Erreur lors de la prédiction: {result['error']}")
-                                with st.expander("Détails de l'erreur"):
-                                    st.code(result.get("error_trace", "Pas de détails supplémentaires disponibles"))
                             else:
-                                # Extraction des prédictions
                                 predicted_class = result["predicted_class"]
                                 confidence = result["confidence"]
                                 all_predictions = result["all_predictions"]
 
-                                # Afficher les résultats
                                 col1, col2 = st.columns(2)
 
                                 with col1:
@@ -449,7 +408,6 @@ def main():
                                     st.progress(confidence)
                                     st.info(f"Confiance: {confidence*100:.2f}%")
 
-                                    # Afficher un tableau de résultats textuels pour accessibilité
                                     st.markdown("### Probabilités par catégorie")
                                     results_table = []
 
@@ -462,14 +420,11 @@ def main():
                                     st.table(results_table)
 
                                 with col2:
-                                    # Visualisation graphique
                                     st.markdown("### Visualisation graphique")
-                                    # Créer un dictionnaire pour la fonction plot_prediction_bars
                                     prediction_dict = {pred["class_name"]: pred["probability"] for pred in all_predictions}
                                     fig = plot_prediction_bars(prediction_dict)
                                     st.pyplot(fig)
 
-                                # Information sur les performances
                                 with st.expander("Informations sur les performances"):
                                     st.markdown(f"""
                                     - **Temps de prétraitement**: {result['preprocess_time']*1000:.2f} ms
@@ -483,13 +438,8 @@ def main():
                         st.code(traceback.format_exc())
         else:
             st.warning("Aucun exemple d'image n'a été trouvé. Veuillez télécharger votre propre image.")
-            with st.expander("Informations de dépannage"):
-                st.write("Répertoire de travail:", os.getcwd())
-                st.write("Contenu du répertoire:", os.listdir("."))
-                if os.path.exists("assets"):
-                    st.write("Contenu du répertoire assets:", os.listdir("assets"))
 
-    # Pied de page avec informations complémentaires
+    # Pied de page
     st.markdown("---")
     st.markdown("""
     ### À propos de cette application
@@ -498,7 +448,6 @@ def main():
 
     Pour plus d'informations sur le modèle, consultez [Hugging Face](https://huggingface.co/mourad42008/convnext-tiny-flipkart-classification).
     """)
-# date 11/05/2025 21h49
-# Point d'entrée principal
+
 if __name__ == "__main__":
     main()
