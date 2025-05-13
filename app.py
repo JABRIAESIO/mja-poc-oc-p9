@@ -246,12 +246,12 @@ def load_model():
 
 def main():
     # AJOUT TEMPORAIRE - FORCE CLEAR CACHE
-    if st.button("🔨 FORCE CLEAR CACHE"):
-        st.cache_resource.clear()
-        st.rerun()
+    #if st.button("🔨 FORCE CLEAR CACHE"):
+    #    st.cache_resource.clear()
+    #    st.rerun()
 
     # forcer le vidage du cash :
-    st.cache_resource.clear()  # Force vider le cache des ressources
+    #st.cache_resource.clear()  # Force vider le cache des ressources
 
     # Informations système pour le débogage
     with st.sidebar:
