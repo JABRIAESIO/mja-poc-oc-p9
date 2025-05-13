@@ -308,7 +308,12 @@ def load_model_from_huggingface():
                 # FIN AJOUT
                 update_loading_status("Modèle n'est pas un SavedModel, tentative avec load_model standard...", "info")
                 try:
-                    model = keras.models.load_model(temp_path)
+                    # CORRECTION CRITIQUE: Ajout de custom_objects pour Keras 3
+                    model = keras.models.load_model(
+                        temp_path,
+                        compile=False,
+                        custom_objects={'Functional': keras.Model}
+                    )
                     # AJOUT DEBUG - DÉBUT
                     update_loading_status("🔍 DEBUG: load_model standard réussi", "error")
                     # FIN AJOUT
@@ -329,7 +334,12 @@ def load_model_from_huggingface():
                 # AJOUT DEBUG - DÉBUT
                 update_loading_status("🔍 DEBUG: Dernière tentative load_model", "error")
                 # FIN AJOUT
-                model = keras.models.load_model(temp_path)
+                # CORRECTION CRITIQUE: Ajout de custom_objects pour Keras 3
+                model = keras.models.load_model(
+                    temp_path,
+                    compile=False,
+                    custom_objects={'Functional': keras.Model}
+                )
                 # AJOUT DEBUG - DÉBUT
                 update_loading_status("🔍 DEBUG: Dernière tentative réussie", "error")
                 # FIN AJOUT

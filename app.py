@@ -25,9 +25,26 @@ st.set_page_config(
 )
 
 # Imports après configuration
-from models.model_loader import load_efficientnet_transformer_model, load_categories, get_model_paths, get_hugging_face_token, HF_MODEL_URL
+from models.model_loader import load_categories, get_model_paths, get_hugging_face_token, HF_MODEL_URL
 from models.inference import predict_image, plot_prediction_bars
 from utils.preprocessing import preprocess_image_for_convnext, resize_and_pad_image, apply_data_augmentation
+
+# Nouvelle fonction pour charger le modèle depuis Hugging Face
+def load_model_from_huggingface():
+    """Charge le modèle depuis Hugging Face avec gestion d'erreurs robuste"""
+    try:
+        # Import conditionnel pour éviter les erreurs
+        from models.model_loader import load_efficientnet_transformer_model
+        
+        with st.spinner('Téléchargement du modèle depuis Hugging Face...'):
+            model = load_efficientnet_transformer_model()
+            return model
+    except ImportError as e:
+        st.error(f"Erreur d'import : {str(e)}")
+        return None
+    except Exception as e:
+        st.error(f"Erreur lors du chargement du modèle : {str(e)}")
+        return None
 
 # CSS pour améliorer l'accessibilité
 st.markdown("""
@@ -201,37 +218,150 @@ def load_example_images():
 
     return [os.path.join(examples_dir, f) for f in image_files]
 
-# ACTIVATION DU CACHE CORRIGÉ
+# Fonction load_model() modifiée selon les recommandations
 @st.cache_resource(show_spinner=False)
 def load_model():
-    """Charge le modèle de classification et les catégories."""
+    """Charge le modèle avec une gestion robuste des erreurs"""
     try:
-        with st.spinner('Chargement du modèle (patientez 1 à 2 minutes)...'):
-            # Test de connexion simplifié
-            test_hugging_face_connection()
-            
-            # Chargement direct avec nouvelle logique
-            model = load_efficientnet_transformer_model()
+        with st.spinner('Chargement du modèle (2-3 minutes pour la première exécution)...'):
+            model = load_model_from_huggingface()
             categories = load_categories()
-
+            
             if model is None:
-                st.error("Échec du chargement du modèle")
-                return None, None
-
+                st.error("""
+                **Échec critique** : Le modèle n'a pas pu être chargé.
+                Causes possibles :
+                - Problème de connexion avec Hugging Face
+                - Format de modèle incompatible
+                - Espace disque insuffisant
+                """)
+                st.stop()
+                
             return model, categories
-
+            
     except Exception as e:
-        st.error(f"Erreur critique : {str(e)}")
+        st.error(f"Erreur irrécupérable : {str(e)}")
         st.stop()
+
+def display_prediction_results(result):
+    """Affiche les résultats de prédiction de manière organisée et accessible"""
+    if "error" in result:
+        st.error(f"Erreur lors de la prédiction: {result['error']}")
+        return
+
+    predicted_class = result["predicted_class"]
+    confidence = result["confidence"]
+    all_predictions = result["all_predictions"]
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Résultat de la classification")
+
+        # Utiliser des éléments sémantiques pour une meilleure accessibilité
+        st.markdown("### Prédiction principale")
+        st.success(f"**Catégorie prédite**: {predicted_class}")
+
+        # Barre de progression avec label associé
+        st.markdown(f"**Niveau de confiance**: {confidence*100:.2f}%")
+        st.progress(confidence)
+
+        # Tableau accessible avec headers explicites
+        st.markdown("### Toutes les probabilités")
+        results_table = []
+
+        for pred in all_predictions:
+            results_table.append({
+                "Catégorie": pred["class_name"],
+                "Probabilité": f"{pred['probability']*100:.2f}%"
+            })
+
+        # Tableau avec titre pour l'accessibilité
+        st.markdown("Tableau des probabilités par catégorie :")
+        st.table(results_table)
+
+    with col2:
+        st.markdown("### Visualisation graphique")
+
+        # Texte alternatif pour le graphique
+        prediction_dict = {pred["class_name"]: pred["probability"] for pred in all_predictions}
+
+        # Description textuelle du graphique pour l'accessibilité
+        st.markdown("**Description du graphique**: Graphique à barres horizontales montrant les probabilités de classification pour chaque catégorie.")
+
+        fig = plot_prediction_bars(prediction_dict)
+
+        # Alt text personnalisé pour le graphique
+        st.pyplot(fig, use_container_width=True)
+
+        # Description détaillée sous le graphique
+        st.markdown(f"**Résumé du graphique**: La catégorie '{predicted_class}' a la probabilité la plus élevée ({confidence*100:.2f}%). Les autres catégories ont des probabilités inférieures.")
+
+    # Informations sur les performances dans un expander
+    with st.expander("Informations sur les performances"):
+        st.markdown(f"""
+        - **Temps de prétraitement**: {result['preprocess_time']*1000:.2f} ms
+        - **Temps d'inférence**: {result['inference_time']*1000:.2f} ms
+        - **Temps total**: {result['total_time']*1000:.2f} ms
+        """)
+
+def process_uploaded_image(uploaded_file, model, categories):
+    """Traite une image téléchargée et affiche les résultats"""
+    try:
+        image = Image.open(uploaded_file)
+        # Afficher l'image avec description alternative accessible
+        st.image(
+            image,
+            caption=f"Image téléchargée: {uploaded_file.name}",
+            width=400,
+            output_format="PNG"
+        )
+
+        # Description alternative pour l'accessibilité
+        st.markdown(f"**Description de l'image**: {uploaded_file.name} - Image téléchargée pour classification")
+
+        if model is not None and categories is not None:
+            with st.spinner("Classification en cours..."):
+                result = predict_image(model, image, categories)
+                display_prediction_results(result)
+    except Exception as e:
+        st.error(f"Erreur lors du traitement de l'image")
+        with st.expander("Détails techniques de l'erreur"):
+            st.error(f"Description: {str(e)}")
+            st.code(traceback.format_exc())
+
+def process_example_image(selected_example, model, categories):
+    """Traite une image d'exemple et affiche les résultats"""
+    try:
+        image = Image.open(selected_example)
+        st.image(
+            image,
+            caption=f"Exemple: {os.path.basename(selected_example)}",
+            width=400,
+            output_format="PNG"
+        )
+
+        # Description alternative pour l'accessibilité
+        st.markdown(f"**Description de l'image**: {os.path.basename(selected_example)} - Image d'exemple pour classification")
+
+        if model is not None and categories is not None:
+            with st.spinner("Classification en cours..."):
+                result = predict_image(model, image, categories)
+                display_prediction_results(result)
+    except Exception as e:
+        st.error(f"Erreur lors du traitement de l'image exemple")
+        with st.expander("Détails techniques de l'erreur"):
+            st.error(f"Description: {str(e)}")
+            st.code(traceback.format_exc())
 
 def main():
     # Ajouter un lien de navigation pour l'accessibilité
     st.markdown('<a href="#main-content" class="skip-nav">Aller au contenu principal</a>', unsafe_allow_html=True)
-    
-    # Sidebar avec informations système  
+
+    # Sidebar avec informations système
     with st.sidebar:
         st.title("Informations système")
-        
+
         system_info = {
             "Version Python": platform.python_version(),
             "Mémoire disponible": f"{psutil.virtual_memory().available / (1024 * 1024):.2f} MB",
@@ -264,12 +394,12 @@ def main():
     Développé dans le cadre du projet 9 de la formation OpenClassrooms "Machine Learning Engineer".
     """)
 
-    # Chargement du modèle
+    # Chargement du modèle avec la nouvelle fonction
     model, categories = load_model()
 
     # Interface pour sélectionner entre upload et exemples
     st.header("Sélection de l'image")
-    
+
     # Utilisation de st.container pour une meilleure organisation
     with st.container():
         st.subheader("Mode de saisie")
@@ -287,85 +417,7 @@ def main():
         )
 
         if uploaded_file is not None:
-            try:
-                image = Image.open(uploaded_file)
-                # Afficher l'image avec description alternative accessible
-                st.image(
-                    image,
-                    caption=f"Image téléchargée: {uploaded_file.name}",
-                    width=400,
-                    output_format="PNG"
-                )
-                
-                # Description alternative pour l'accessibilité
-                st.markdown(f"**Description de l'image**: {uploaded_file.name} - Image téléchargée pour classification")
-
-                if model is not None and categories is not None:
-                    with st.spinner("Classification en cours..."):
-                        result = predict_image(model, image, categories)
-
-                        if "error" in result:
-                            st.error(f"Erreur lors de la prédiction: {result['error']}")
-                        else:
-                            predicted_class = result["predicted_class"]
-                            confidence = result["confidence"]
-                            all_predictions = result["all_predictions"]
-
-                            col1, col2 = st.columns(2)
-
-                            with col1:
-                                st.subheader("Résultat de la classification")
-                                
-                                # Utiliser des éléments sémantiques pour une meilleure accessibilité
-                                st.markdown("### Prédiction principale")
-                                st.success(f"**Catégorie prédite**: {predicted_class}")
-                                
-                                # Barre de progression avec label associé
-                                st.markdown(f"**Niveau de confiance**: {confidence*100:.2f}%")
-                                st.progress(confidence)
-                                
-                                # Tableau accessible avec headers explicites
-                                st.markdown("### Toutes les probabilités")
-                                results_table = []
-
-                                for pred in all_predictions:
-                                    results_table.append({
-                                        "Catégorie": pred["class_name"],
-                                        "Probabilité": f"{pred['probability']*100:.2f}%"
-                                    })
-
-                                # Tableau avec titre pour l'accessibilité
-                                st.markdown("Tableau des probabilités par catégorie :")
-                                st.table(results_table)
-
-                            with col2:
-                                st.markdown("### Visualisation graphique")
-                                
-                                # Texte alternatif pour le graphique
-                                prediction_dict = {pred["class_name"]: pred["probability"] for pred in all_predictions}
-                                
-                                # Description textuelle du graphique pour l'accessibilité
-                                st.markdown("**Description du graphique**: Graphique à barres horizontales montrant les probabilités de classification pour chaque catégorie.")
-                                
-                                fig = plot_prediction_bars(prediction_dict)
-                                
-                                # Alt text personnalisé pour le graphique
-                                st.pyplot(fig, use_container_width=True)
-                                
-                                # Description détaillée sous le graphique
-                                st.markdown(f"**Résumé du graphique**: La catégorie '{predicted_class}' a la probabilité la plus élevée ({confidence*100:.2f}%). Les autres catégories ont des probabilités inférieures.")
-
-                            with st.expander("Informations sur les performances"):
-                                st.markdown(f"""
-                                - **Temps de prétraitement**: {result['preprocess_time']*1000:.2f} ms
-                                - **Temps d'inférence**: {result['inference_time']*1000:.2f} ms
-                                - **Temps total**: {result['total_time']*1000:.2f} ms
-                                """)
-            except Exception as e:
-                st.error(f"Erreur lors du traitement de l'image")
-                with st.expander("Détails techniques de l'erreur"):
-                    st.error(f"Description: {str(e)}")
-                    st.code(traceback.format_exc())
+            process_uploaded_image(uploaded_file, model, categories)
     else:
         examples = load_example_images()
 
@@ -380,62 +432,7 @@ def main():
             selected_example = next((ex for ex in examples if os.path.basename(ex) == selected_example_name), None)
 
             if selected_example:
-                try:
-                    image = Image.open(selected_example)
-                    st.image(
-                        image,
-                        caption=f"Exemple: {os.path.basename(selected_example)}",
-                        width=400,
-                        output_format="PNG"
-                    )
-
-                    if model is not None and categories is not None:
-                        with st.spinner("Classification en cours..."):
-                            result = predict_image(model, image, categories)
-
-                            if "error" in result:
-                                st.error(f"Erreur lors de la prédiction: {result['error']}")
-                            else:
-                                predicted_class = result["predicted_class"]
-                                confidence = result["confidence"]
-                                all_predictions = result["all_predictions"]
-
-                                col1, col2 = st.columns(2)
-
-                                with col1:
-                                    st.subheader("Résultat de la classification")
-                                    st.success(f"Catégorie prédite: **{predicted_class}**")
-                                    st.progress(confidence)
-                                    st.info(f"Confiance: {confidence*100:.2f}%")
-
-                                    st.markdown("### Probabilités par catégorie")
-                                    results_table = []
-
-                                    for pred in all_predictions:
-                                        results_table.append({
-                                            "Catégorie": pred["class_name"],
-                                            "Probabilité": f"{pred['probability']*100:.2f}%"
-                                        })
-
-                                    st.table(results_table)
-
-                                with col2:
-                                    st.markdown("### Visualisation graphique")
-                                    prediction_dict = {pred["class_name"]: pred["probability"] for pred in all_predictions}
-                                    fig = plot_prediction_bars(prediction_dict)
-                                    st.pyplot(fig)
-
-                                with st.expander("Informations sur les performances"):
-                                    st.markdown(f"""
-                                    - **Temps de prétraitement**: {result['preprocess_time']*1000:.2f} ms
-                                    - **Temps d'inférence**: {result['inference_time']*1000:.2f} ms
-                                    - **Temps total**: {result['total_time']*1000:.2f} ms
-                                    """)
-                except Exception as e:
-                    st.error(f"Erreur lors du traitement de l'image exemple")
-                    with st.expander("Détails techniques de l'erreur"):
-                        st.error(f"Description: {str(e)}")
-                        st.code(traceback.format_exc())
+                process_example_image(selected_example, model, categories)
         else:
             st.warning("Aucun exemple d'image n'a été trouvé. Veuillez télécharger votre propre image.")
 
