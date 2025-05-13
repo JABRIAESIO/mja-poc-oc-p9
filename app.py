@@ -12,6 +12,7 @@ import requests
 import sys
 import platform
 import psutil
+import shutil  # AJOUT DEBUG - pour vérification espace disque
 
 # Configuration essentielle AVANT tout autre code
 os.environ['KERAS_BACKEND'] = 'tensorflow'
@@ -224,6 +225,20 @@ def load_model():
     """Charge le modèle avec une gestion robuste des erreurs"""
     try:
         with st.spinner('Chargement du modèle (2-3 minutes pour la première exécution)...'):
+            # Obtention des chemins
+            paths = get_model_paths()
+            
+            # AJOUT DEBUG - Vérification de l'espace disque
+            total, used, free = shutil.disk_usage("/")
+            st.write(f"Espace disque disponible : {free // (2**30)} Go")
+            
+            # AJOUT DEBUG - Vérification de la présence effective du fichier
+            if os.path.exists(paths['convnext_model']):
+                st.success(f"Fichier modèle trouvé : {paths['convnext_model']}")
+                st.write(f"Taille : {os.path.getsize(paths['convnext_model']) / 1e6:.2f} MB")
+            else:
+                st.error("Fichier modèle absent !")
+            
             model = load_model_from_huggingface()
             categories = load_categories()
             
