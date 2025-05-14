@@ -10,6 +10,7 @@ import numpy as np
 import time
 from PIL import Image
 import streamlit as st  # Ajout de l'import streamlit
+from huggingface_hub import hf_hub_download
 
 # Utilise TensorFlow comme backend pour Keras 3
 os.environ['KERAS_BACKEND'] = 'tensorflow'
@@ -215,43 +216,28 @@ def load_model_from_huggingface():
             # FIN AJOUT
             update_loading_status("Aucun token d'authentification Hugging Face trouvé", "warning")
 
-        # Télécharger le modèle avec authentification si nécessaire
-        # AJOUT DEBUG - DÉBUT
-        update_loading_status("🔍 DEBUG: Début de la requête HTTP", "error")
-        # FIN AJOUT
-        response = requests.get(
-            HF_MODEL_URL,
-            headers=headers,
-            stream=True,
-            timeout=300,
-            allow_redirects=True  # Suivre les redirections automatiquement
-        )
-
-        # Afficher des informations de débogage
-        # AJOUT DEBUG - DÉBUT
-        update_loading_status(f"🔍 DEBUG: Response code = {response.status_code}", "error")
-        # FIN AJOUT
-        update_loading_status(f"Code HTTP: {response.status_code}", "info")
-        update_loading_status(f"URL finale après redirection: {response.url}", "info")
-
-        response.raise_for_status()  # Lève une exception en cas d'erreur HTTP
-
-        # Enregistrer le modèle dans le fichier temporaire avec indication de progression
-        # AJOUT DEBUG - DÉBUT
-        update_loading_status("🔍 DEBUG: Début du téléchargement du fichier", "error")
-        # FIN AJOUT
-        update_loading_status("Téléchargement du fichier modèle (114 MB)...", "info")
-        content_length = int(response.headers.get('Content-Length', 0)) or None
-        if content_length:
-            update_loading_status(f"Taille totale: {content_length/1024/1024:.1f} MB", "info")
-
-        downloaded = 0
-        with open(temp_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-                downloaded += len(chunk)
-                if content_length and downloaded % (5*1024*1024) == 0:  # Mise à jour tous les 5 MB
-                    update_loading_status(f"Téléchargement en cours... {downloaded/1024/1024:.1f} MB / {content_length/1024/1024:.1f} MB", "info")
+        # Utiliser hf_hub_download au lieu de requests.get
+        update_loading_status("🔍 DEBUG: Début du téléchargement avec hf_hub_download", "error")
+        try:
+            # Télécharger avec hf_hub_download et force_download=True
+            model_path_downloaded = hf_hub_download(
+                repo_id="mourad42008/convnext-tiny-flipkart-classification",
+                filename="model_final.keras",
+                force_download=True,  # ← AJOUT ESSENTIEL
+                token=hf_token,
+                cache_dir=tempfile.gettempdir()
+            )
+            
+            # Copier vers temp_path pour le reste du code
+            import shutil
+            shutil.copy2(model_path_downloaded, temp_path)
+            downloaded = os.path.getsize(temp_path)
+            
+            update_loading_status(f"Téléchargement terminé: {downloaded/1024/1024:.1f} MB", "success")
+            
+        except Exception as e:
+            update_loading_status(f"Erreur téléchargement: {e}", "error")
+            return None
 
         # AJOUT DEBUG - DÉBUT
         st.write(f"🔍 DEBUG: Téléchargement terminé, taille = {downloaded} bytes")
