@@ -22,9 +22,9 @@ from utils.preprocessing import preprocess_image_for_convnext, resize_and_pad_im
 # keras.config.enable_unsafe_deserialization() car cette fonction n'est pas compatible avec v3 de keras.
 
 # URL du modèle sur Hugging Face
-HF_MODEL_URL = "https://huggingface.co/mourad42008/convnext-tiny-flipkart-classification/resolve/main/model_final.keras"  # MODIFICATION 1: .h5 → .keras
+HF_MODEL_URL = "https://huggingface.co/mourad42008/convnext-tiny-flipkart-classification/resolve/main/model_final_fixed.keras"  # MODIFICATION 1: .h5 → .keras
 # Nom du fichier pour la sauvegarde locale - CORRIGÉ pour correspondre au fichier sur HF
-MODEL_FILENAME = "model_final.keras"  # MODIFICATION 2: .h5 → .keras
+MODEL_FILENAME = "model_final_fixed.keras"  # MODIFICATION 2: .h5 → .keras
 
 def get_hugging_face_token():
     """
@@ -224,7 +224,7 @@ def load_model_from_huggingface():
             # Télécharger avec hf_hub_download et force_download=True
             model_path_downloaded = hf_hub_download(
                 repo_id="mourad42008/convnext-tiny-flipkart-classification",
-                filename="model_final.keras",
+                filename="model_final_fixed.keras",
                 force_download=True,  # ← AJOUT ESSENTIEL
                 token=hf_token,
                 cache_dir=tempfile.gettempdir()
