@@ -217,7 +217,9 @@ def load_model_from_huggingface():
             update_loading_status("Aucun token d'authentification Hugging Face trouvé", "warning")
 
         # Utiliser hf_hub_download au lieu de requests.get
+        # AJOUT DEBUG - DÉBUT
         update_loading_status("🔍 DEBUG: Début du téléchargement avec hf_hub_download", "error")
+        # FIN AJOUT
         try:
             # Télécharger avec hf_hub_download et force_download=True
             model_path_downloaded = hf_hub_download(
@@ -286,7 +288,29 @@ def load_model_from_huggingface():
                         update_loading_status(f"🔍 DEBUG: Erreur keras.models.load_model = {keras_e}", "error")
                         # FIN AJOUT
                         update_loading_status(f"Erreur avec keras.models.load_model: {keras_e}", "error")
-                        return None
+                        # Utiliser TFSMLayer comme indiqué dans l'erreur
+                        try:
+                            # AJOUT DEBUG - DÉBUT
+                            update_loading_status("🔍 DEBUG: Tentative TFSMLayer pour le fichier téléchargé", "error")
+                            # FIN AJOUT
+                            update_loading_status("Tentative de chargement avec TFSMLayer...", "info")
+                            from keras.layers import TFSMLayer
+                            from keras.models import Sequential
+                            
+                            # Créer un modèle avec TFSMLayer
+                            model = Sequential([
+                                TFSMLayer(temp_path, call_endpoint='serving_default')
+                            ])
+                            # AJOUT DEBUG - DÉBUT
+                            update_loading_status("🔍 DEBUG: TFSMLayer réussi pour le fichier téléchargé", "error")
+                            # FIN AJOUT
+                            update_loading_status("Modèle chargé avec TFSMLayer!", "success")
+                        except Exception as tfsm_e:
+                            # AJOUT DEBUG - DÉBUT
+                            update_loading_status(f"🔍 DEBUG: Erreur TFSMLayer pour le fichier téléchargé = {tfsm_e}", "error")
+                            # FIN AJOUT
+                            update_loading_status(f"Erreur avec TFSMLayer: {tfsm_e}", "error")
+                            return None
             else:
                 # Si ce n'est pas un SavedModel, essayer avec les méthodes standard Keras
                 # AJOUT DEBUG - DÉBUT
@@ -294,12 +318,7 @@ def load_model_from_huggingface():
                 # FIN AJOUT
                 update_loading_status("Modèle n'est pas un SavedModel, tentative avec load_model standard...", "info")
                 try:
-                    # CORRECTION CRITIQUE: Ajout de custom_objects pour Keras 3
-                    model = keras.models.load_model(
-                        temp_path,
-                        compile=False,
-                        custom_objects={'Functional': keras.Model}
-                    )
+                    model = keras.models.load_model(temp_path)
                     # AJOUT DEBUG - DÉBUT
                     update_loading_status("🔍 DEBUG: load_model standard réussi", "error")
                     # FIN AJOUT
@@ -309,7 +328,29 @@ def load_model_from_huggingface():
                     update_loading_status(f"🔍 DEBUG: Erreur load_model standard = {keras_e}", "error")
                     # FIN AJOUT
                     update_loading_status(f"Erreur avec load_model standard: {keras_e}", "error")
-                    return None
+                    # Utiliser TFSMLayer comme indiqué dans l'erreur
+                    try:
+                        # AJOUT DEBUG - DÉBUT
+                        update_loading_status("🔍 DEBUG: Tentative TFSMLayer en fallback", "error")
+                        # FIN AJOUT
+                        update_loading_status("Tentative de chargement avec TFSMLayer en tant que fallback...", "info")
+                        from keras.layers import TFSMLayer
+                        from keras.models import Sequential
+                        
+                        # Créer un modèle avec TFSMLayer
+                        model = Sequential([
+                            TFSMLayer(temp_path, call_endpoint='serving_default')
+                        ])
+                        # AJOUT DEBUG - DÉBUT
+                        update_loading_status("🔍 DEBUG: TFSMLayer fallback réussi", "error")
+                        # FIN AJOUT
+                        update_loading_status("Modèle chargé avec TFSMLayer (fallback)!", "success")
+                    except Exception as tfsm_e:
+                        # AJOUT DEBUG - DÉBUT
+                        update_loading_status(f"🔍 DEBUG: Erreur TFSMLayer fallback = {tfsm_e}", "error")
+                        # FIN AJOUT
+                        update_loading_status(f"Erreur avec TFSMLayer fallback: {tfsm_e}", "error")
+                        return None
         except Exception as format_e:
             # AJOUT DEBUG - DÉBUT
             update_loading_status(f"🔍 DEBUG: Erreur vérification format = {format_e}", "error")
@@ -320,12 +361,7 @@ def load_model_from_huggingface():
                 # AJOUT DEBUG - DÉBUT
                 update_loading_status("🔍 DEBUG: Dernière tentative load_model", "error")
                 # FIN AJOUT
-                # CORRECTION CRITIQUE: Ajout de custom_objects pour Keras 3
-                model = keras.models.load_model(
-                    temp_path,
-                    compile=False,
-                    custom_objects={'Functional': keras.Model}
-                )
+                model = keras.models.load_model(temp_path)
                 # AJOUT DEBUG - DÉBUT
                 update_loading_status("🔍 DEBUG: Dernière tentative réussie", "error")
                 # FIN AJOUT
@@ -335,7 +371,29 @@ def load_model_from_huggingface():
                 update_loading_status(f"🔍 DEBUG: Dernière tentative échouée = {last_e}", "error")
                 # FIN AJOUT
                 update_loading_status(f"Échec de toutes les tentatives de chargement: {last_e}", "error")
-                return None
+                # Ultime tentative avec TFSMLayer
+                try:
+                    # AJOUT DEBUG - DÉBUT
+                    update_loading_status("🔍 DEBUG: Ultime tentative TFSMLayer", "error")
+                    # FIN AJOUT
+                    update_loading_status("Ultime tentative avec TFSMLayer...", "info")
+                    from keras.layers import TFSMLayer
+                    from keras.models import Sequential
+                    
+                    # Créer un modèle avec TFSMLayer
+                    model = Sequential([
+                        TFSMLayer(temp_path, call_endpoint='serving_default')
+                    ])
+                    # AJOUT DEBUG - DÉBUT
+                    update_loading_status("🔍 DEBUG: Ultime tentative TFSMLayer réussie", "error")
+                    # FIN AJOUT
+                    update_loading_status("Modèle chargé avec TFSMLayer (ultime tentative)!", "success")
+                except Exception as final_e:
+                    # AJOUT DEBUG - DÉBUT
+                    update_loading_status(f"🔍 DEBUG: Ultime tentative TFSMLayer échouée = {final_e}", "error")
+                    # FIN AJOUT
+                    update_loading_status(f"Échec ultime avec TFSMLayer: {final_e}", "error")
+                    return None
 
         # Sauvegarder le modèle localement pour une utilisation future
         try:
