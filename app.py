@@ -30,13 +30,16 @@ from models.model_loader import load_categories, get_model_paths, get_hugging_fa
 from models.inference import predict_image, plot_prediction_bars
 from utils.preprocessing import preprocess_image_for_convnext, resize_and_pad_image, apply_data_augmentation
 
+# NOUVEAU : Import du module EDA
+from eda_module import display_eda_mode
+
 # Nouvelle fonction pour charger le modèle depuis Hugging Face
 def load_model_from_huggingface():
     """Charge le modèle depuis Hugging Face avec gestion d'erreurs robuste"""
     try:
         # Import conditionnel pour éviter les erreurs
         from models.model_loader import load_efficientnet_transformer_model
-        
+
         with st.spinner('Téléchargement du modèle depuis Hugging Face...'):
             model = load_efficientnet_transformer_model()
             return model
@@ -227,21 +230,21 @@ def load_model():
         with st.spinner('Chargement du modèle (2-3 minutes pour la première exécution)...'):
             # Obtention des chemins
             paths = get_model_paths()
-            
+
             # AJOUT DEBUG - Vérification de l'espace disque
             total, used, free = shutil.disk_usage("/")
             st.write(f"Espace disque disponible : {free // (2**30)} Go")
-            
+
             # AJOUT DEBUG - Vérification de la présence effective du fichier
             if os.path.exists(paths['convnext_model']):
                 st.success(f"Fichier modèle trouvé : {paths['convnext_model']}")
                 st.write(f"Taille : {os.path.getsize(paths['convnext_model']) / 1e6:.2f} MB")
             else:
                 st.error("Fichier modèle absent !")
-            
+
             model = load_model_from_huggingface()
             categories = load_categories()
-            
+
             if model is None:
                 st.error("""
                 **Échec critique** : Le modèle n'a pas pu être chargé.
@@ -251,9 +254,9 @@ def load_model():
                 - Espace disque insuffisant
                 """)
                 st.stop()
-                
+
             return model, categories
-            
+
     except Exception as e:
         st.error(f"Erreur irrécupérable : {str(e)}")
         st.stop()
@@ -369,49 +372,8 @@ def process_example_image(selected_example, model, categories):
             st.error(f"Description: {str(e)}")
             st.code(traceback.format_exc())
 
-def main():
-    # Ajouter un lien de navigation pour l'accessibilité
-    st.markdown('<a href="#main-content" class="skip-nav">Aller au contenu principal</a>', unsafe_allow_html=True)
-
-    # Sidebar avec informations système
-    with st.sidebar:
-        st.title("Informations système")
-
-        system_info = {
-            "Version Python": platform.python_version(),
-            "Mémoire disponible": f"{psutil.virtual_memory().available / (1024 * 1024):.2f} MB",
-            "Nombre de CPU": os.cpu_count(),
-            "Répertoire de travail": os.getcwd()
-        }
-
-        for label, value in system_info.items():
-            st.markdown(f"**{label}:** {value}")
-
-        paths = get_model_paths()
-        st.markdown("### Informations modèle")
-        st.markdown(f"**URL Hugging Face:** {HF_MODEL_URL}")
-        st.markdown(f"**Chemin local:** {paths['convnext_model']}")
-
-        if st.button("Tester la connexion à Hugging Face"):
-            test_hugging_face_connection()
-
-    # Titre principal avec ancre pour l'accessibilité
-    st.markdown('<div id="main-content"></div>', unsafe_allow_html=True)
-    st.title("🛒 Classifieur d'Images - Flipkart")
-    st.markdown("""
-    Cette application permet de classifier des images selon différentes catégories en utilisant un modèle ConvNeXtTiny.
-
-    **Comment utiliser cette application:**
-    1. Téléchargez une image de produit
-    2. Le modèle analysera automatiquement l'image
-    3. Les résultats de classification s'afficheront ci-dessous
-
-    Développé dans le cadre du projet 9 de la formation OpenClassrooms "Machine Learning Engineer".
-    """)
-
-    # Chargement du modèle avec la nouvelle fonction
-    model, categories = load_model()
-
+def display_classification_interface(model, categories):
+    """Affiche l'interface de classification (code existant séparé)"""
     # Interface pour sélectionner entre upload et exemples
     st.header("Sélection de l'image")
 
@@ -450,6 +412,67 @@ def main():
                 process_example_image(selected_example, model, categories)
         else:
             st.warning("Aucun exemple d'image n'a été trouvé. Veuillez télécharger votre propre image.")
+
+def main():
+    # Ajouter un lien de navigation pour l'accessibilité
+    st.markdown('<a href="#main-content" class="skip-nav">Aller au contenu principal</a>', unsafe_allow_html=True)
+
+    # Sidebar avec informations système
+    with st.sidebar:
+        st.title("Informations système")
+
+        system_info = {
+            "Version Python": platform.python_version(),
+            "Mémoire disponible": f"{psutil.virtual_memory().available / (1024 * 1024):.2f} MB",
+            "Nombre de CPU": os.cpu_count(),
+            "Répertoire de travail": os.getcwd()
+        }
+
+        for label, value in system_info.items():
+            st.markdown(f"**{label}:** {value}")
+
+        paths = get_model_paths()
+        st.markdown("### Informations modèle")
+        st.markdown(f"**URL Hugging Face:** {HF_MODEL_URL}")
+        st.markdown(f"**Chemin local:** {paths['convnext_model']}")
+
+        if st.button("Tester la connexion à Hugging Face"):
+            test_hugging_face_connection()
+
+        # NOUVEAU : Navigation principale dans la sidebar
+        st.markdown("---")
+        st.subheader("Navigation")
+        app_mode = st.radio(
+            "Choisir le mode :",
+            ["🔮 Classification", "📊 Analyse des Données"],
+            help="Mode Classification : classifiez vos images\nMode Analyse : explorez les données d'entraînement"
+        )
+
+    # Titre principal avec ancre pour l'accessibilité
+    st.markdown('<div id="main-content"></div>', unsafe_allow_html=True)
+    st.title("🛒 Classifieur d'Images - Flipkart")
+    st.markdown("""
+    Cette application permet de classifier des images selon différentes catégories en utilisant un modèle ConvNeXtTiny.
+
+    **Comment utiliser cette application:**
+    1. Téléchargez une image de produit
+    2. Le modèle analysera automatiquement l'image
+    3. Les résultats de classification s'afficheront ci-dessous
+
+    Développé dans le cadre du projet 9 de la formation OpenClassrooms "Machine Learning Engineer".
+    """)
+
+    # Chargement du modèle avec la nouvelle fonction
+    model, categories = load_model()
+
+    # NOUVEAU : Conditionner l'affichage selon le mode sélectionné
+    if app_mode == "🔮 Classification":
+        # Mode Classification (code existant)
+        display_classification_interface(model, categories)
+        
+    elif app_mode == "📊 Analyse des Données":
+        # NOUVEAU : Mode EDA
+        display_eda_mode()
 
     # Pied de page
     st.markdown("---")
